@@ -459,6 +459,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 	uint32_t MapNumTeams = 0;
 	uint32_t MapFilterType = MAPFILTER_TYPE_SCENARIO;
 	vector<CGameSlot> Slots;
+	uint32_t HiddenSlots = 0;
 
 	if( !m_MapData.empty( ) )
 	{
@@ -550,7 +551,6 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 							}
 
 							ISS.read( (char *)&RawMapNumPlayers, 4 );	// number of players
-							uint32_t ClosedSlots = 0;
 
 							for( uint32_t i = 0; i < RawMapNumPlayers; ++i )
 							{
@@ -574,7 +574,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 								else
 								{
 									Slot.SetSlotStatus( SLOTSTATUS_CLOSED );
-									++ClosedSlots;
+									++HiddenSlots;
 								}
 
 								ISS.read( (char *)&Race, 4 );			// race
@@ -637,8 +637,8 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 							CONSOLE_Print( "[MAP] calculated map_width = " + UTIL_ByteArrayToDecString( MapWidth ) );
 							MapHeight = UTIL_CreateByteArray( (uint16_t)RawMapHeight, false );
 							CONSOLE_Print( "[MAP] calculated map_height = " + UTIL_ByteArrayToDecString( MapHeight ) );
-							MapNumPlayers = RawMapNumPlayers - ClosedSlots;
-							CONSOLE_Print( "[MAP] calculated map_numplayers = " + UTIL_ToString( MapNumPlayers ) );
+							MapNumPlayers = RawMapNumPlayers - HiddenSlots;
+							CONSOLE_Print( "[MAP] calculated map_numplayers = " + UTIL_ToString( MapNumPlayers ) + " + " + UTIL_ToString( HiddenSlots ) );
 							MapNumTeams = RawMapNumTeams;
 							CONSOLE_Print( "[MAP] calculated map_numteams = " + UTIL_ToString( MapNumTeams ) );
 
@@ -870,9 +870,9 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 		if( EditorVersion < 6060 )
 			DefaultMaxSlots = 12;
 		uint32_t MaxSlots = CFG->GetInt( "map_maxslots", DefaultMaxSlots );
-		CONSOLE_Print( "[MAP] adding " + UTIL_ToString( MaxSlots - m_Slots.size( ) ) + " observer slots" );
+		CONSOLE_Print( "[MAP] adding " + UTIL_ToString( MaxSlots - HiddenSlots - m_Slots.size( ) ) + " observer slots" );
 
-		while( m_Slots.size( ) < MaxSlots )
+		while( m_Slots.size( ) < MaxSlots - HiddenSlots )
 			m_Slots.push_back( CGameSlot( 0, 255, SLOTSTATUS_OPEN, 0, MAX_SLOTS, MAX_SLOTS, SLOTRACE_RANDOM ) );
 	}
 
