@@ -376,7 +376,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			break;
 		}
 	}
-	if (player->IsAdmin())
+	if (player->IsAdmin() && player->GetSpoofed())
 		RootAdminCheck = true;
 	if (player->IsLocalPlayer())
 		RootAdminCheck = true;

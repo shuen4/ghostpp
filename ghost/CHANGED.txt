@@ -1,13 +1,18 @@
+CONFIG:
 autohost_startplayers	<- changed to allow 0 which mean no auto start
 bot_fakeplayername		<- fakeplayer default name
 bot_fakeplayer		<- if 1 game will created with fakeplayer in game
 autohost_backupowner	<- change game owner to this player if autohost_owner is not in game
-
 bnet#_backupip
 bnet#_backupport
 
+MANAGE:
+admin.txt			<- give player name root admin permission (file end with "\n")
+localip.txt			<- able to use all command (file end with "\n")
+
+other:
+8MB patch for 1.24 <= version <1.28
 fix if observer enabled and map have unusable slot war3 will leave lobby
-fix SLOTRACE_RANDOM can't change when map is fixed player settings
-fix if map is fixed player settings can't change SLOTRACE_RANDOM
+fix if map is fixed player settings can't change SLOTRACE_RANDOM to others
 
 // maybe there is something I forgot
