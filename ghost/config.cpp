@@ -27,7 +27,6 @@
 //
 // CConfig
 //
-
 CConfig :: CConfig( )
 {
 
@@ -37,7 +36,6 @@ CConfig :: ~CConfig( )
 {
 
 }
-
 void CConfig :: Read( string file )
 {
 	ifstream in;

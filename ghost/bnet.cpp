@@ -44,7 +44,7 @@ using namespace boost :: filesystem;
 // CBNET
 //
 
-CBNET :: CBNET( CGHost *nGHost, string nServer, string nServerAlias, string nBNLSServer, uint16_t nBNLSPort, uint32_t nBNLSWardenCookie, string nCDKeyROC, string nCDKeyTFT, string nCountryAbbrev, string nCountry, uint32_t nLocaleID, string nUserName, string nUserPassword, string nFirstChannel, string nRootAdmin, char nCommandTrigger, bool nHoldFriends, bool nHoldClan, bool nPublicCommands, unsigned char nWar3Version, BYTEARRAY nEXEVersion, BYTEARRAY nEXEVersionHash, string nPasswordHashType, string nPVPGNRealmName, uint32_t nMaxMessageLength, uint32_t nHostCounterID )
+CBNET :: CBNET( CGHost *nGHost, string nServer, string nServerAlias, string nBackupIP, string nBackupPort, string nBNLSServer, uint16_t nBNLSPort, uint32_t nBNLSWardenCookie, string nCDKeyROC, string nCDKeyTFT, string nCountryAbbrev, string nCountry, uint32_t nLocaleID, string nUserName, string nUserPassword, string nFirstChannel, string nRootAdmin, char nCommandTrigger, bool nHoldFriends, bool nHoldClan, bool nPublicCommands, unsigned char nWar3Version, BYTEARRAY nEXEVersion, BYTEARRAY nEXEVersionHash, string nPasswordHashType, string nPVPGNRealmName, uint32_t nMaxMessageLength, uint32_t nHostCounterID )
 {
 	// todotodo: append path seperator to Warcraft3Path if needed
 
@@ -57,6 +57,8 @@ CBNET :: CBNET( CGHost *nGHost, string nServer, string nServerAlias, string nBNL
 	m_CallableBanList = m_GHost->m_DB->ThreadedBanList( nServer );
 	m_Exiting = false;
 	m_Server = nServer;
+	m_BackupIP = nBackupIP;
+	m_BackupPort = nBackupPort;
 	string LowerServer = m_Server;
 	transform( LowerServer.begin( ), LowerServer.end( ), LowerServer.begin( ), (int(*)(int))tolower );
 
@@ -635,7 +637,15 @@ bool CBNET :: Update( void *fd, void *send_fd )
 		if( m_ServerIP.empty( ) )
 		{
 			m_Socket->Connect( m_GHost->m_BindAddress, m_Server, 6112 );
-
+			if (m_Socket->HasError() && !m_BackupIP.empty()) {
+				int i = m_Socket->GetError();
+				m_Socket->SetHasError(false);
+				m_Socket->SetGetError(0);
+				CONSOLE_Print("[BNET: " + m_ServerAlias + "] connecting to backup server [" + m_BackupIP + "] on port " + m_BackupPort);
+				m_Socket->Connect(m_GHost->m_BindAddress, m_BackupIP, UTIL_ToUInt16(m_BackupPort));
+				if (m_Socket->HasError())
+					m_Socket->SetGetError(i);
+			}
 			if( !m_Socket->HasError( ) )
 			{
 				m_ServerIP = m_Socket->GetIPString( );
@@ -1650,7 +1660,7 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 		//
 
 		else if( Command == "hostsg" && !Payload.empty( ) )
-			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, true, Payload, User, User, m_Server, Whisper );
+			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, true, Payload, User, m_GHost->m_AutoHostBackupOwner, User, m_Server, Whisper );
 
 		//
 		// !INVITE
@@ -1694,8 +1704,8 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 
 						for( directory_iterator i( MapCFGPath ); i != EndIterator; ++i )
 						{
-							string FileName = i->path( ).filename( ).string( );
-							string Stem = i->path( ).stem( ).string( );
+							string FileName = i->path( ).filename( );
+							string Stem = i->path( ).stem( );
 							transform( FileName.begin( ), FileName.end( ), FileName.begin( ), (int(*)(int))tolower );
 							transform( Stem.begin( ), Stem.end( ), Stem.begin( ), (int(*)(int))tolower );
 
@@ -1705,9 +1715,9 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 								++Matches;
 
 								if( FoundMapConfigs.empty( ) )
-									FoundMapConfigs = i->path( ).filename( ).string( );
+									FoundMapConfigs = i->path( ).filename( );
 								else
-									FoundMapConfigs += ", " + i->path( ).filename( ).string( );
+									FoundMapConfigs += ", " + i->path( ).filename( );
 
 								// if the pattern matches the filename exactly, with or without extension, stop any further matching
 
@@ -1723,7 +1733,7 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 							QueueChatCommand( m_GHost->m_Language->NoMapConfigsFound( ), User, Whisper );
 						else if( Matches == 1 )
 						{
-							string File = LastMatch.filename( ).string( );
+							string File = LastMatch.filename( );
 							QueueChatCommand( m_GHost->m_Language->LoadingConfigFile( m_GHost->m_MapCFGPath + File ), User, Whisper );
 							CConfig MapCFG;
 							MapCFG.Read( LastMatch.string( ) );
@@ -1805,8 +1815,8 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 
 						for( directory_iterator i( MapPath ); i != EndIterator; ++i )
 						{
-							string FileName = i->path( ).filename( ).string( );
-							string Stem = i->path( ).stem( ).string( );
+							string FileName = i->path( ).filename( );
+							string Stem = i->path( ).stem( );
 							transform( FileName.begin( ), FileName.end( ), FileName.begin( ), (int(*)(int))tolower );
 							transform( Stem.begin( ), Stem.end( ), Stem.begin( ), (int(*)(int))tolower );
 
@@ -1816,9 +1826,9 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 								++Matches;
 
 								if( FoundMaps.empty( ) )
-									FoundMaps = i->path( ).filename( ).string( );
+									FoundMaps = i->path( ).filename( );
 								else
-									FoundMaps += ", " + i->path( ).filename( ).string( );
+									FoundMaps += ", " + i->path( ).filename( );
 
 								// if the pattern matches the filename exactly, with or without extension, stop any further matching
 
@@ -1834,7 +1844,7 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 							QueueChatCommand( m_GHost->m_Language->NoMapsFound( ), User, Whisper );
 						else if( Matches == 1 )
 						{
-							string File = LastMatch.filename( ).string( );
+							string File = LastMatch.filename( );
 							QueueChatCommand( m_GHost->m_Language->LoadingConfigFile( File ), User, Whisper );
 
 							// hackhack: create a config file in memory with the required information to load the map
@@ -1882,7 +1892,7 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 		//
 
 		else if( Command == "priv" && !Payload.empty( ) )
-			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, Payload, User, User, m_Server, Whisper );
+			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, Payload, User, m_GHost->m_AutoHostBackupOwner, User, m_Server, Whisper );
 
 		//
 		// !PRIVBY (host private game by other player)
@@ -1901,7 +1911,7 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 			{
 				Owner = Payload.substr( 0, GameNameStart );
 				GameName = Payload.substr( GameNameStart + 1 );
-				m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, GameName, Owner, User, m_Server, Whisper );
+				m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, GameName, Owner, m_GHost->m_AutoHostBackupOwner, User, m_Server, Whisper );
 			}
 		}
 
@@ -1910,7 +1920,7 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 		//
 
 		else if( Command == "pub" && !Payload.empty( ) )
-			m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, Payload, User, User, m_Server, Whisper );
+			m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, Payload, User, m_GHost->m_AutoHostBackupOwner, User, m_Server, Whisper );
 
 		//
 		// !PUBBY (host public game by other player)
@@ -1929,7 +1939,7 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 			{
 				Owner = Payload.substr( 0, GameNameStart );
 				GameName = Payload.substr( GameNameStart + 1 );
-				m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, GameName, Owner, User, m_Server, Whisper );
+				m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, GameName, Owner, m_GHost->m_AutoHostBackupOwner, User, m_Server, Whisper );
 			}
 		}
 
@@ -2001,7 +2011,6 @@ void CBNET :: BotCommand( string Message, string User, bool Whisper, bool ForceR
 			else
 				QueueChatCommand( m_GHost->m_Language->YouDontHaveAccessToThatCommand( ), User, Whisper );
 		}
-
 		//
 		// !SHAMAN
 		//
@@ -2278,7 +2287,7 @@ void CBNET :: QueueGameRefresh( unsigned char state, string gameName, string hos
 			uint32_t MapGameType = map->GetMapGameType( );
 			MapGameType |= MAPGAMETYPE_UNKNOWN0;
 			//Apply overwrite if not equal to 0
-			MapGameType = ( m_GHost->m_MapGameType != 0 ) ? m_GHost->m_MapGameType : MapGameType;
+			MapGameType = ( m_GHost->m_MapGameType != 0 ) ? MapGameType : m_GHost->m_MapGameType;
 
 			if( state == GAME_PRIVATE )
 				MapGameType |= MAPGAMETYPE_PRIVATEGAME;
@@ -2414,7 +2423,18 @@ bool CBNET :: IsRootAdmin( string name )
 		if( name == s )
 			return true;
 	}
-
+	ifstream file("admin.txt");
+	if (file.fail())
+		return false;
+	while (getline(file, s)) {
+		if (s.empty())
+			continue;
+		if (name == s) {
+			file.close();
+			return true;
+		}
+	}
+	file.close();
 	return false;
 }
 

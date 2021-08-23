@@ -25,7 +25,7 @@
 #include <string.h>
 
 #ifndef WIN32
- DWORD GetLastError( ) { return errno; }
+ int GetLastError( ) { return errno; }
 #endif
 
 //
@@ -397,7 +397,6 @@ void CTCPClient :: Connect( string localaddress, string address, uint16_t port )
 	struct hostent *HostInfo;
 	uint32_t HostAddress;
 	HostInfo = gethostbyname( address.c_str( ) );
-
 	if( !HostInfo )
 	{
 		m_HasError = true;
@@ -407,7 +406,6 @@ void CTCPClient :: Connect( string localaddress, string address, uint16_t port )
 	}
 
 	memcpy( &HostAddress, HostInfo->h_addr, HostInfo->h_length );
-
 	// connect
 
 	m_SIN.sin_family = AF_INET;

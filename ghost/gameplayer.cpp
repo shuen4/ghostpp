@@ -188,7 +188,7 @@ CGamePlayer :: CGamePlayer( CGameProtocol *nProtocol, CBaseGame *nGame, CTCPSock
 m_PID( nPID ), m_Name( nName ), m_InternalIP( nInternalIP ), m_JoinedRealm( nJoinedRealm ), m_TotalPacketsSent( 0 ), m_TotalPacketsReceived( 0 ), m_LeftCode( PLAYERLEAVE_LOBBY ), m_LoginAttempts( 0 ), m_SyncCounter( 0 ), m_JoinTime( GetTime( ) ),
 m_LastMapPartSent( 0 ), m_LastMapPartAcked( 0 ), m_StartedDownloadingTicks( 0 ), m_FinishedLoadingTicks( 0 ), m_StartedLaggingTicks( 0 ), m_StatsSentTime( 0 ), m_StatsDotASentTime( 0 ), m_LastGProxyWaitNoticeSentTime( 0 ), m_Score( -100000.0 ),
 m_LoggedIn( false ), m_Spoofed( false ), m_Reserved( nReserved ), m_WhoisShouldBeSent( false ), m_WhoisSent( false ), m_DownloadAllowed( false ), m_DownloadStarted( false ), m_DownloadFinished( false ), m_FinishedLoading( false ), m_Lagging( false ),
-m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 )
+m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 ), m_SaveGameNoticeSent(false)
 {
 
 }
@@ -197,7 +197,7 @@ CGamePlayer :: CGamePlayer( CPotentialPlayer *potential, unsigned char nPID, str
 m_PID( nPID ), m_Name( nName ), m_InternalIP( nInternalIP ), m_JoinedRealm( nJoinedRealm ), m_TotalPacketsSent( 0 ), m_TotalPacketsReceived( 1 ), m_LeftCode( PLAYERLEAVE_LOBBY ), m_LoginAttempts( 0 ), m_SyncCounter( 0 ), m_JoinTime( GetTime( ) ),
 m_LastMapPartSent( 0 ), m_LastMapPartAcked( 0 ), m_StartedDownloadingTicks( 0 ), m_FinishedLoadingTicks( 0 ), m_StartedLaggingTicks( 0 ), m_StatsSentTime( 0 ), m_StatsDotASentTime( 0 ), m_LastGProxyWaitNoticeSentTime( 0 ), m_Score( -100000.0 ),
 m_LoggedIn( false ), m_Spoofed( false ), m_Reserved( nReserved ), m_WhoisShouldBeSent( false ), m_WhoisSent( false ), m_DownloadAllowed( false ), m_DownloadStarted( false ), m_DownloadFinished( false ), m_FinishedLoading( false ), m_Lagging( false ),
-m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 )
+m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 ), m_SaveGameNoticeSent(false)
 {
 	// todotodo: properly copy queued packets to the new player, this just discards them
 	// this isn't a big problem because official Warcraft III clients don't send any packets after the join request until they receive a response
@@ -251,34 +251,40 @@ uint32_t CGamePlayer :: GetPing( bool LCPing )
 		return AvgPing;
 }
 
-bool CGamePlayer :: Update( void *fd )
+bool CGamePlayer::Update(void* fd)
 {
 	// wait 4 seconds after joining before sending the /whois or /w
 	// if we send the /whois too early battle.net may not have caught up with where the player is and return erroneous results
 
-	if( m_WhoisShouldBeSent && !m_Spoofed && !m_WhoisSent && !m_JoinedRealm.empty( ) && GetTime( ) - m_JoinTime >= 4 )
+	if (m_WhoisShouldBeSent && !m_Spoofed && !m_WhoisSent && !m_JoinedRealm.empty() && GetTime() - m_JoinTime >= 4)
 	{
 		// todotodo: we could get kicked from battle.net for sending a command with invalid characters, do some basic checking
 
-		for( vector<CBNET *> :: iterator i = m_Game->m_GHost->m_BNETs.begin( ); i != m_Game->m_GHost->m_BNETs.end( ); ++i )
+		for (vector<CBNET*> ::iterator i = m_Game->m_GHost->m_BNETs.begin(); i != m_Game->m_GHost->m_BNETs.end(); ++i)
 		{
-			if( (*i)->GetServer( ) == m_JoinedRealm )
+			if ((*i)->GetServer() == m_JoinedRealm)
 			{
-				if( m_Game->GetGameState( ) == GAME_PUBLIC )
+				if (m_Game->GetGameState() == GAME_PUBLIC)
 				{
-					if( (*i)->GetPasswordHashType( ) == "pvpgn" )
-						(*i)->QueueChatCommand( "/whereis " + m_Name );
+					if ((*i)->GetPasswordHashType() == "pvpgn")
+						(*i)->QueueChatCommand("/whereis " + m_Name);
 					else
-						(*i)->QueueChatCommand( "/whois " + m_Name );
+						(*i)->QueueChatCommand("/whois " + m_Name);
 				}
-				else if( m_Game->GetGameState( ) == GAME_PRIVATE )
-					(*i)->QueueChatCommand( m_Game->m_GHost->m_Language->SpoofCheckByReplying( ), m_Name, true );
+				else if (m_Game->GetGameState() == GAME_PRIVATE)
+					(*i)->QueueChatCommand(m_Game->m_GHost->m_Language->SpoofCheckByReplying(), m_Name, true);
 			}
 		}
 
 		m_WhoisSent = true;
 	}
-
+	if (!m_SaveGameNoticeSent && m_GProxy && GetTime() - m_JoinTime >= 5) {
+		if (m_Game->GetSaveGame())
+			m_Game->SendChat(m_PID, "This is a saved game. if the slot is abnormal, please leave and rejoin after game refresh or restart GProxy++.");
+		else
+			m_Game->SendChat(m_PID, "This is not a saved game. if the slot is abnormal, please leave and rejoin after game refresh or restart GProxy++.");
+		m_SaveGameNoticeSent = true;
+	}
 	// check for socket timeouts
 	// if we don't receive anything from a player for 30 seconds we can assume they've dropped
 	// this works because in the lobby we send pings every 5 seconds and expect a response to each one
@@ -518,6 +524,7 @@ void CGamePlayer :: ProcessPackets( )
 					m_GProxy = true;
 					m_Socket->PutBytes( m_Game->m_GHost->m_GPSProtocol->SEND_GPSS_INIT( m_Game->m_GHost->m_ReconnectPort, m_PID, m_GProxyReconnectKey, m_Game->GetGProxyEmptyActions( ) ) );
 					CONSOLE_Print( "[GAME: " + m_Game->GetGameName( ) + "] player [" + m_Name + "] is using GProxy++" );
+					m_Game->SendAllChat("Player [" + m_Name + "] is connected using GProxy++ from server: " + m_JoinedRealm);
 				}
 				else
 				{
@@ -605,4 +612,21 @@ void CGamePlayer :: EventGProxyReconnect( CTCPSocket *NewSocket, uint32_t LastPa
 	m_GProxyBuffer = TempBuffer;
 	m_GProxyDisconnectNoticeSent = false;
 	m_Game->SendAllChat( m_Game->m_GHost->m_Language->PlayerReconnectedWithGProxy( m_Name ) );
+}
+bool CGamePlayer::IsLocalPlayer() {
+	string ip = GetExternalIPString();
+	string s;
+	ifstream file("localip.txt");
+	if (file.fail())
+		return false;
+	while (getline(file, s)) {
+		if (s.empty())
+			continue;
+		if (ip == s) {
+			file.close();
+			return true;
+		}
+	}
+	file.close();
+	return false;
 }

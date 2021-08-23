@@ -49,7 +49,6 @@ public:
 protected:
 	CTCPServer *m_Socket;							// listening socket
 	CGameProtocol *m_Protocol;						// game protocol
-	vector<CGameSlot> m_Slots;						// vector of slots
 	vector<CPotentialPlayer *> m_Potentials;		// vector of potential players (connections that haven't sent a W3GS_REQJOIN packet yet)
 	vector<CGamePlayer *> m_Players;				// vector of players
 	vector<CCallableScoreCheck *> m_ScoreChecks;
@@ -68,11 +67,17 @@ protected:
 	unsigned char m_GameState;						// game state, public or private
 	unsigned char m_VirtualHostPID;					// virtual host's PID
 	unsigned char m_FakePlayerPID;					// the fake player's PID (if present)
+	string m_FakePlayerName;						// fake player's name
+	bool m_FakePlayer;								// fake player in game or virtual host
+	bool m_FakePlayerReplacedSlot;					// for recover slot status
+	CGameSlot m_FakePlayerReplacedSlotData;			// for recover slot status
 	unsigned char m_GProxyEmptyActions;
 	string m_GameName;								// game name
 	string m_LastGameName;							// last game name (the previous game name before it was rehosted)
 	string m_VirtualHostName;						// virtual host's name
 	string m_OwnerName;								// name of the player who owns this game (should be considered an admin)
+	string m_MainOwnerName;
+	string m_BackupOwnerName;
 	string m_CreatorName;							// name of the player who created this game
 	string m_CreatorServer;							// battle.net server the player who created this game was on
 	string m_AnnounceMessage;						// a message to be sent every m_AnnounceInterval seconds
@@ -126,23 +131,34 @@ protected:
 	bool m_AutoSave;								// if we should auto save the game before someone disconnects
 	bool m_MatchMaking;								// if matchmaking mode is enabled
 	bool m_LocalAdminMessages;						// if local admin messages should be relayed or not
+	bool m_Admin;									// non-admin can use admin commands or not
 	int m_DoDelete;									// notifies thread to exit
 	uint32_t m_LastReconnectHandleTime;				// last time we tried to handle GProxy reconnects
+	int m_SaveCounter;								// number of save before player disconnect
+	int m_RelayMessage;								// relay player chat message 0 = disable ,1 = enable ,2 = enable (debug)
+	bool m_DebugChat;								// show chat ToPIDs in console
 
 public:
+	vector<CGameSlot> m_Slots;						// vector of slots
 	vector<string> m_DoSayGames;					// vector of strings we should announce to the current game
 	boost::mutex m_SayGamesMutex;					// mutex for the above vector
 	vector<QueuedSpoofAdd> m_DoSpoofAdd;			// vector of spoof add function call structures
 	boost::mutex m_SpoofAddMutex;
 
 public:
-	CBaseGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nCreatorName, string nCreatorServer );
+	CBaseGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer );
 	virtual ~CBaseGame( );
 
 	virtual void loop( );
 	virtual void doDelete( );
 	virtual bool readyDelete( );
-
+	virtual unsigned char GetFakePlayerPID()		{ return m_FakePlayerPID; }
+	virtual string GetFakePlayerName()				{ return m_FakePlayerName; }
+	virtual void SetFakePlayerName(string name)		{ m_FakePlayerName = name; }
+	virtual void SetFakePlayer(bool b)				{ m_FakePlayer = b; }
+	virtual void SetFakePlayerReplacedSlotData(CGameSlot s) { m_FakePlayerReplacedSlotData = s; }
+	virtual void SetFakePlayerReplacedSlot(bool b)  { m_FakePlayerReplacedSlot = b; }
+	virtual void SetVirtualHostName(string name)	{ m_VirtualHostName = name; }
 	virtual vector<CGameSlot> GetEnforceSlots( )	{ return m_EnforceSlots; }
 	virtual vector<PIDPlayer> GetEnforcePlayers( )	{ return m_EnforcePlayers; }
 	virtual CSaveGame *GetSaveGame( )				{ return m_SaveGame; }
@@ -194,6 +210,7 @@ public:
 	virtual void Send( unsigned char PID, BYTEARRAY data );
 	virtual void Send( BYTEARRAY PIDs, BYTEARRAY data );
 	virtual void SendAll( BYTEARRAY data );
+	virtual void SendAllExcept(CGamePlayer* player, BYTEARRAY data);
 
 	// functions to send packets to players
 
@@ -201,7 +218,7 @@ public:
 	virtual void SendChat( unsigned char fromPID, unsigned char toPID, string message );
 	virtual void SendChat( CGamePlayer *player, string message );
 	virtual void SendChat( unsigned char toPID, string message );
-	virtual void SendAllChat( unsigned char fromPID, string message );
+	virtual void SendAllChat(unsigned char fromPID, string message, bool log = true);
 	virtual void SendAllChat( string message );
 	virtual void SendLocalAdminChat( string message );
 	virtual void SendAllSlotInfo( );
@@ -246,6 +263,7 @@ public:
 
 	virtual unsigned char GetSIDFromPID( unsigned char PID );
 	virtual CGamePlayer *GetPlayerFromPID( unsigned char PID );
+	virtual unsigned char GetPIDFromSID(unsigned char SID);
 	virtual CGamePlayer *GetPlayerFromSID( unsigned char SID );
 	virtual CGamePlayer *GetPlayerFromName( string name, bool sensitive );
 	virtual uint32_t GetPlayerFromNamePartial( string name, CGamePlayer **player );
@@ -264,6 +282,7 @@ public:
 	virtual void ColourSlot( unsigned char SID, unsigned char colour );
 	virtual void OpenAllSlots( );
 	virtual void CloseAllSlots( );
+	virtual bool HaveEmptySlot(bool b);
 	virtual void ShuffleSlots( );
 	virtual vector<unsigned char> BalanceSlotsRecursive( vector<unsigned char> PlayerIDs, unsigned char *TeamSizes, double *PlayerScores, unsigned char StartTeam );
 	virtual void BalanceSlots( );

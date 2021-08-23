@@ -126,6 +126,7 @@ private:
 	queue<BYTEARRAY> m_GProxyBuffer;
 	uint32_t m_GProxyReconnectKey;
 	uint32_t m_LastGProxyAckTime;
+	bool m_SaveGameNoticeSent;
 
 public:
 	CGamePlayer( CGameProtocol *nProtocol, CBaseGame *nGame, CTCPSocket *nSocket, unsigned char nPID, string nJoinedRealm, string nName, BYTEARRAY nInternalIP, bool nReserved );
@@ -217,6 +218,7 @@ public:
 
 	virtual void Send( BYTEARRAY data );
 	virtual void EventGProxyReconnect( CTCPSocket *NewSocket, uint32_t LastPacket );
+	virtual bool IsLocalPlayer();
 };
 
 #endif

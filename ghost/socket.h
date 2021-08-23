@@ -80,8 +80,7 @@
 
  #define closesocket close
 
- typedef unsigned int   DWORD;
- extern DWORD GetLastError( );
+ extern int GetLastError( );
 #endif
 
 #ifndef INADDR_NONE
@@ -117,7 +116,9 @@ public:
 	virtual BYTEARRAY GetIP( );
 	virtual string GetIPString( );
 	virtual bool HasError( )						{ return m_HasError; }
+	virtual void SetHasError( bool b )				{ m_HasError=b; }
 	virtual int GetError( )							{ return m_Error; }
+	virtual void SetGetError( int i )				{ m_Error=i; }
 	virtual string GetErrorString( );
 	virtual void SetFD( fd_set *fd, fd_set *send_fd, int *nfds );
 	virtual void Allocate( int type );

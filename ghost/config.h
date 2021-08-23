@@ -33,7 +33,6 @@ private:
 public:
 	CConfig( );
 	~CConfig( );
-
 	void Read( string file );
 	bool Exists( string key );
 	int GetInt( string key, int x );

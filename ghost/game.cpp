@@ -66,7 +66,7 @@ public:
 // CGame
 //
 
-CGame :: CGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nCreatorName, string nCreatorServer ) : CBaseGame( nGHost, nMap, nSaveGame, nHostPort, nGameState, nGameName, nOwnerName, nCreatorName, nCreatorServer ), m_DBBanLast( NULL ), m_Stats( NULL ) ,m_CallableGameAdd( NULL )
+CGame :: CGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer ) : CBaseGame( nGHost, nMap, nSaveGame, nHostPort, nGameState, nGameName, nOwnerName, nBackupOwnerName, nCreatorName, nCreatorServer ), m_DBBanLast( NULL ), m_Stats( NULL ) ,m_CallableGameAdd( NULL )
 {
 	m_DBGame = new CDBGame( 0, string( ), m_Map->GetMapPath( ), string( ), string( ), string( ), 0 );
 
@@ -346,6 +346,7 @@ bool CGame :: EventPlayerAction( CGamePlayer *player, CIncomingAction *action )
 
 bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string payload )
 {
+	bool renew = false;
 	bool HideCommand = CBaseGame :: EventPlayerBotCommand( player, command, payload );
 
 	// todotodo: don't be lazy
@@ -369,23 +370,127 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 	for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
 	{
-		if( (*i)->GetServer( ) == player->GetSpoofedRealm( ) && (*i)->IsRootAdmin( User ) )
+		if (((*i)->GetServer() == player->GetSpoofedRealm() || player->GetSpoofedRealm() == "LAN") && (*i)->IsRootAdmin(User))
 		{
 			RootAdminCheck = true;
 			break;
 		}
 	}
-
-	if( player->GetSpoofed( ) && ( AdminCheck || RootAdminCheck || IsOwner( User ) ) )
+	if (player->IsLocalPlayer())
+		RootAdminCheck = true;
+	if (((player->GetSpoofed() ) && (AdminCheck || RootAdminCheck || IsOwner(User) ))|| m_Admin )
 	{
-		CONSOLE_Print( "[GAME: " + m_GameName + "] admin [" + User + "] sent command [" + Command + "] with payload [" + Payload + "]" );
+		CONSOLE_Print("[GAME: " + m_GameName + "] admin [" + User + "] sent command [" + Command + "] with payload [" + Payload + "]");
 
-		if( !m_Locked || RootAdminCheck || IsOwner( User ) )
+		if (!m_Locked || RootAdminCheck || IsOwner(User) )
 		{
 			/*****************
 			* ADMIN COMMANDS *
 			******************/
-
+			//
+			// !COMMAND
+			// !CMD
+			//
+			if ((Command == "cmd" || Command == "command" ) && (RootAdminCheck || IsOwner(User))) {
+				if (m_Admin==false) {
+					m_Admin = true;
+					SendAllChat("non-admin can now use admin commands.");
+				}
+				else
+				{
+					m_Admin = false;
+					SendAllChat("admin commands are no longer available for non-admin.");
+				}
+			}
+			//
+			//!ADDADMIN
+			//
+			else if ((Command == "addadmin" || Command == "aa") && !Payload.empty() && player->IsLocalPlayer()) {
+				fstream f;
+				CGamePlayer* p = NULL;
+				uint32_t count = GetPlayerFromNamePartial(Payload, &p);
+				string name = p->GetName();
+				transform(name.begin(), name.end(), name.begin(), (int(*)(int))tolower);
+				if (count == 0) {
+					SendAllChat("User not found");
+					return false;
+				}
+				f.open("admin.txt", ios::app);
+				if (f.fail()) {
+					SendAllChat("Unable to open database");
+					return false;
+				}
+				f << name << "\n";
+				f.close();
+				SendAllChat("Added user [" + p->GetName() + "] to the admin database");
+			}
+			//
+			//!DELADMIN
+			//
+			else if ((Command == "dellastadmin" || Command == "dla") && player->IsLocalPlayer()) {
+				ifstream file("admin.txt");
+				string tmp = "";
+				string tmp1 = "";
+				string total;
+				if (file.fail()) {
+					SendAllChat("Unable to open database");
+					return false;
+				}
+				while (getline(file, tmp)) {
+					if (tmp.empty())
+						continue;
+					if (!tmp1.empty())
+						total += tmp1 + "\n";
+					tmp1 = tmp;
+				}
+				file.close();
+				remove("admin.txt");
+				fstream f;
+				f.open("admin.txt", ios::app);
+				if (f.fail()) {
+					SendAllChat("Unable to open database");
+					return false;
+				}
+				f << total;
+				f.close();
+				SendAllChat("Deleted user [" + tmp1 + "] from the admin database");
+			}
+			//
+			//!DELADMIN
+			//
+			else if ((Command == "deladmin" || Command == "da") && !Payload.empty() && player->IsLocalPlayer()) {
+				ifstream file("admin.txt");
+				string s;
+				string buf="";
+				bool b = false;
+				if (file.fail()) {
+					SendAllChat("Unable to open database");
+					return false;
+				}
+				while (getline(file, s)) {
+					if (s.empty())
+						continue;
+					if (Payload != s)
+						buf += s + "\n";
+					if (Payload == s)
+						b = true;
+				}
+				if (b == false) {
+					SendAllChat("User not found: " + Payload);
+					return false;
+				}
+				file.close();
+				remove("admin.txt");
+				fstream f;
+				f.open("admin.txt",ios::app);
+				if (f.fail()) {
+					SendAllChat("Unable to open database");
+					return false;
+				}
+				f << buf;
+				f.close();
+				SendAllChat("Deleted user [" + Payload + "] from the admin database");
+			}
 			//
 			// !ABORT (abort countdown)
 			// !A
@@ -393,7 +498,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 			// we use "!a" as an alias for abort because you don't have much time to abort the countdown so it's useful for the abort command to be easy to type
 
-			if( ( Command == "abort" || Command == "a" ) && m_CountDownStarted && !m_GameLoading && !m_GameLoaded )
+			else if( ( Command == "abort" || Command == "a" ) && m_CountDownStarted && !m_GameLoading && !m_GameLoaded )
 			{
 				SendAllChat( m_GHost->m_Language->CountDownAborted( ) );
 				m_CountDownStarted = false;
@@ -404,7 +509,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !BAN
 			//
 
-			else if( ( Command == "addban" || Command == "ban" ) && !Payload.empty( ) && !m_GHost->m_BNETs.empty( ) )
+			else if( ( Command == "addban" || Command == "ban" ) && !Payload.empty( ) && !m_GHost->m_BNETs.empty( ) && (RootAdminCheck||IsOwner(User)))
 			{
 				// extract the victim and the reason
 				// e.g. "Varlock leaver after dying" -> victim: "Varlock", reason: "leaver after dying"
@@ -479,7 +584,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !ANNOUNCE
 			//
 
-			else if( Command == "announce" && !m_CountDownStarted )
+			else if( Command == "announce" && !m_CountDownStarted && (RootAdminCheck || IsOwner(User)))
 			{
 				if( Payload.empty( ) || Payload == "off" )
 				{
@@ -498,11 +603,11 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					SS >> Interval;
 
 					if( SS.fail( ) || Interval == 0 )
-						CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #1 to announce command" );
+						SendAllChat("invalid input 1");
 					else
 					{
 						if( SS.eof( ) )
-							CONSOLE_Print( "[GAME: " + m_GameName + "] missing input #2 to announce command" );
+							SendAllChat("missing input 2");
 						else
 						{
 							getline( SS, Message );
@@ -520,9 +625,10 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 			//
 			// !AUTOSAVE
+			// !AS
 			//
 
-			else if( Command == "autosave" )
+			else if( Command == "autosave" || Command == "as" )
 			{
 				if( Payload == "on" )
 				{
@@ -563,7 +669,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !BANLAST
 			//
 
-			else if( Command == "banlast" && m_GameLoaded && !m_GHost->m_BNETs.empty( ) && m_DBBanLast )
+			else if( Command == "banlast" && m_GameLoaded && !m_GHost->m_BNETs.empty( ) && m_DBBanLast && (RootAdminCheck || IsOwner(User)))
 				m_PairedBanAdds.push_back( PairedBanAdd( User, m_GHost->m_DB->ThreadedBanAdd( m_DBBanLast->GetServer( ), m_DBBanLast->GetName( ), m_DBBanLast->GetIP( ), m_GameName, User, Payload ) ) );
 
 			//
@@ -572,20 +678,20 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 			else if( Command == "check" )
 			{
-				if( !Payload.empty( ) )
+				if (!Payload.empty())
 				{
-					CGamePlayer *LastMatch = NULL;
-					uint32_t Matches = GetPlayerFromNamePartial( Payload, &LastMatch );
+					CGamePlayer* LastMatch = NULL;
+					uint32_t Matches = GetPlayerFromNamePartial(Payload, &LastMatch);
 
-					if( Matches == 0 )
-						SendAllChat( m_GHost->m_Language->UnableToCheckPlayerNoMatchesFound( Payload ) );
-					else if( Matches == 1 )
+					if (Matches == 0)
+						SendAllChat(m_GHost->m_Language->UnableToCheckPlayerNoMatchesFound(Payload));
+					else if (Matches == 1)
 					{
 						bool LastMatchAdminCheck = false;
 
-						for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
+						for (vector<CBNET*> ::iterator i = m_GHost->m_BNETs.begin(); i != m_GHost->m_BNETs.end(); ++i)
 						{
-							if( (*i)->GetServer( ) == LastMatch->GetSpoofedRealm( ) && (*i)->IsAdmin( LastMatch->GetName( ) ) )
+							if ((*i)->GetServer() == LastMatch->GetSpoofedRealm() && (*i)->IsAdmin(LastMatch->GetName()))
 							{
 								LastMatchAdminCheck = true;
 								break;
@@ -594,24 +700,40 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 						bool LastMatchRootAdminCheck = false;
 
-						for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
+						for (vector<CBNET*> ::iterator i = m_GHost->m_BNETs.begin(); i != m_GHost->m_BNETs.end(); ++i)
 						{
-							if( (*i)->GetServer( ) == LastMatch->GetSpoofedRealm( ) && (*i)->IsRootAdmin( LastMatch->GetName( ) ) )
+							if (((*i)->GetServer() == LastMatch->GetSpoofedRealm() || LastMatch->GetSpoofedRealm() == "LAN") && (*i)->IsRootAdmin(LastMatch->GetName()))
 							{
 								LastMatchRootAdminCheck = true;
 								break;
 							}
 						}
-
-						SendAllChat( m_GHost->m_Language->CheckedPlayer( LastMatch->GetName( ), LastMatch->GetNumPings( ) > 0 ? UTIL_ToString( LastMatch->GetPing( m_GHost->m_LCPings ) ) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( LastMatch->GetExternalIP( ), true ) ), LastMatchAdminCheck || LastMatchRootAdminCheck ? "Yes" : "No", IsOwner( LastMatch->GetName( ) ) ? "Yes" : "No", LastMatch->GetSpoofed( ) ? "Yes" : "No", LastMatch->GetSpoofedRealm( ).empty( ) ? "N/A" : LastMatch->GetSpoofedRealm( ), LastMatch->GetReserved( ) ? "Yes" : "No" ) );
+						SendAllChat(m_GHost->m_Language->CheckedPlayer(LastMatch->GetName(), LastMatch->GetNumPings() > 0 ? UTIL_ToString(LastMatch->GetPing(m_GHost->m_LCPings)) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck(UTIL_ByteArrayToUInt32(LastMatch->GetExternalIP(), true)) + "(" + LastMatch->GetExternalIPString() + ")", LastMatchAdminCheck || LastMatchRootAdminCheck ? "Yes" : "No", IsOwner(LastMatch->GetName()) ? "Yes" : "No", LastMatch->GetSpoofed() ? "Yes" : "No", LastMatch->GetSpoofedRealm().empty() ? "N/A" : LastMatch->GetSpoofedRealm(), LastMatch->GetReserved() ? "Yes" : "No"));
 					}
 					else
-						SendAllChat( m_GHost->m_Language->UnableToCheckPlayerFoundMoreThanOneMatch( Payload ) );
+						SendAllChat(m_GHost->m_Language->UnableToCheckPlayerFoundMoreThanOneMatch(Payload));
 				}
 				else
-					SendAllChat( m_GHost->m_Language->CheckedPlayer( User, player->GetNumPings( ) > 0 ? UTIL_ToString( player->GetPing( m_GHost->m_LCPings ) ) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( player->GetExternalIP( ), true ) ), AdminCheck || RootAdminCheck ? "Yes" : "No", IsOwner( User ) ? "Yes" : "No", player->GetSpoofed( ) ? "Yes" : "No", player->GetSpoofedRealm( ).empty( ) ? "N/A" : player->GetSpoofedRealm( ), player->GetReserved( ) ? "Yes" : "No" ) );
+					SendAllChat( m_GHost->m_Language->CheckedPlayer( User, player->GetNumPings( ) > 0 ? UTIL_ToString( player->GetPing( m_GHost->m_LCPings ) ) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( player->GetExternalIP( ), true ) ) + "(" + GetPlayerFromName(User,false)->GetExternalIPString() + ")", AdminCheck || RootAdminCheck ? "Yes" : "No", IsOwner( User ) ? "Yes" : "No", player->GetSpoofed( ) ? "Yes" : "No", player->GetSpoofedRealm( ).empty( ) ? "N/A" : player->GetSpoofedRealm( ), player->GetReserved( ) ? "Yes" : "No" ) );
 			}
-
+			//
+			//!CHECKALL
+			//
+			else if (Command == "checkall") {
+				for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i)
+				{
+					bool IsRAdmin = false;
+					bool IsAdmin = false;
+					for (vector<CBNET*> ::iterator j = m_GHost->m_BNETs.begin(); j != m_GHost->m_BNETs.end(); ++j)
+					{
+						if (((*j)->GetServer() == player->GetSpoofedRealm()|| player->GetSpoofedRealm() == "LAN") && (*j)->IsRootAdmin((*i)->GetName()))
+							IsRAdmin = true;
+						if (((*j)->GetServer() == player->GetSpoofedRealm()|| player->GetSpoofedRealm() == "LAN") && (*j)->IsAdmin((*i)->GetName()))
+							IsAdmin = true;
+					}
+					SendAllChat(m_GHost->m_Language->CheckedPlayer((*i)->GetName(), (*i)->GetNumPings() > 0 ? UTIL_ToString((*i)->GetPing(m_GHost->m_LCPings)) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck(UTIL_ByteArrayToUInt32((*i)->GetExternalIP(), true))+"("+(*i)->GetExternalIPString()+")", IsAdmin || IsRAdmin? "Yes" : "No", IsOwner((*i)->GetName()) ? "Yes" : "No", (*i)->GetSpoofed() ? "Yes" : "No", (*i)->GetSpoofedRealm().empty() ? "N/A" : (*i)->GetSpoofedRealm(), (*i)->GetReserved() ? "Yes" : "No"));
+				}
+			}
 			//
 			// !CHECKBAN
 			//
@@ -621,12 +743,33 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
 					m_PairedBanChecks.push_back( PairedBanCheck( User, m_GHost->m_DB->ThreadedBanCheck( (*i)->GetServer( ), Payload, string( ) ) ) );
 			}
+			//
+			// !CLEAR
+			//
+			else if (Command == "clear") {
+				if(!m_GameLoading && !m_GameLoaded)
+					for (int i = 0; i < 8; i++)
+						SendChat(player, " ");
+				else
+					for (int i = 0; i < 32; i++)
+						SendChat(player, " ");
+			}
 
+			//
+			// !CLEARALL
+			//
+			else if (Command == "clearall" && (RootAdminCheck || IsOwner(User)))
+				if (!m_GameLoading && !m_GameLoaded)
+					for (int i = 0; i < 8; i++)
+						SendAllChat(GetHostPID(), " ", false);
+				else
+					for (int i = 0; i < 32; i++)
+						SendAllChat(GetHostPID(), " ", false);
 			//
 			// !CLEARHCL
 			//
 
-			else if( Command == "clearhcl" && !m_CountDownStarted )
+			else if( Command == "clearhcl" && !m_CountDownStarted && (RootAdminCheck || IsOwner(User)))
 			{
 				m_HCLCommandString.clear( );
 				SendAllChat( m_GHost->m_Language->ClearingHCL( ) );
@@ -636,25 +779,33 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !CLOSE (close slot)
 			//
 
-			else if( Command == "close" && !Payload.empty( ) && !m_GameLoading && !m_GameLoaded )
+			else if( (Command == "close" || Command == "c")&& !Payload.empty( ) && !m_GameLoading && !m_GameLoaded )
 			{
 				// close as many slots as specified, e.g. "5 10" closes slots 5 and 10
 
 				stringstream SS;
 				SS << Payload;
 
-				while( !SS.eof( ) )
+				while (!SS.eof())
 				{
 					uint32_t SID;
 					SS >> SID;
 
-					if( SS.fail( ) )
+					if (SS.fail())
 					{
-						CONSOLE_Print( "[GAME: " + m_GameName + "] bad input to close command" );
+						SendAllChat("invalid input" + Payload);
 						break;
 					}
-					else
-						CloseSlot( (unsigned char)( SID - 1 ), true );
+					else {
+						if (SID > m_Slots.size()) {
+							SendAllChat("invalid input: " + UTIL_ToString(SID));
+							continue;
+						}
+						if (GetPlayerFromSID(SID - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(SID - 1) && GetPlayerFromSID(SID - 1)->IsLocalPlayer())
+							SendAllChat("invalid input: " + UTIL_ToString(SID));
+						else
+							CloseSlot((unsigned char)(SID - 1), true);
+					}
 				}
 			}
 
@@ -662,7 +813,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !CLOSEALL
 			//
 
-			else if( Command == "closeall" && !m_GameLoading && !m_GameLoaded )
+			else if( (Command == "closeall"||Command=="ca") && !m_GameLoading && !m_GameLoaded )
 				CloseAllSlots( );
 
 			//
@@ -681,16 +832,22 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SS >> Slot;
 
 				if( SS.fail( ) )
-					CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #1 to comp command" );
+					SendAllChat("invalid input 1");
 				else
 				{
 					if( !SS.eof( ) )
 						SS >> Skill;
-
+					if (Slot > m_Slots.size()) {
+						SendAllChat("invalid input 1");
+						return false;
+					}
 					if( SS.fail( ) )
-						CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #2 to comp command" );
+						SendAllChat("invalid input 2");
 					else
-						ComputerSlot( (unsigned char)( Slot - 1 ), (unsigned char)Skill, true );
+						if (GetPlayerFromSID(Slot - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(Slot - 1) && GetPlayerFromSID(Slot - 1)->IsLocalPlayer())
+							SendAllChat("invalid input 1");
+						else
+							ComputerSlot((unsigned char)(Slot - 1), (unsigned char)Skill, true);
 				}
 			}
 
@@ -710,17 +867,17 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SS >> Slot;
 
 				if( SS.fail( ) )
-					CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #1 to compcolour command" );
+					SendAllChat("invalid input 1");
 				else
 				{
 					if( SS.eof( ) )
-						CONSOLE_Print( "[GAME: " + m_GameName + "] missing input #2 to compcolour command" );
+						SendAllChat("missing input 2");
 					else
 					{
 						SS >> Colour;
 
 						if( SS.fail( ) )
-							CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #2 to compcolour command" );
+							SendAllChat("invalid input 2");
 						else
 						{
 							unsigned char SID = (unsigned char)( Slot - 1 );
@@ -751,17 +908,17 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SS >> Slot;
 
 				if( SS.fail( ) )
-					CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #1 to comphandicap command" );
+					SendAllChat("invalid input 1");
 				else
 				{
 					if( SS.eof( ) )
-						CONSOLE_Print( "[GAME: " + m_GameName + "] missing input #2 to comphandicap command" );
+						SendAllChat("missing input 2");
 					else
 					{
 						SS >> Handicap;
 
 						if( SS.fail( ) )
-							CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #2 to comphandicap command" );
+							SendAllChat("invalid input 2");
 						else
 						{
 							unsigned char SID = (unsigned char)( Slot - 1 );
@@ -795,11 +952,11 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SS >> Slot;
 
 				if( SS.fail( ) )
-					CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #1 to comprace command" );
+					SendAllChat("invalid input 1");
 				else
 				{
 					if( SS.eof( ) )
-						CONSOLE_Print( "[GAME: " + m_GameName + "] missing input #2 to comprace command" );
+						SendAllChat("missing input 2");
 					else
 					{
 						getline( SS, Race );
@@ -865,17 +1022,17 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SS >> Slot;
 
 				if( SS.fail( ) )
-					CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #1 to compteam command" );
+					SendAllChat("invalid input 1");
 				else
 				{
 					if( SS.eof( ) )
-						CONSOLE_Print( "[GAME: " + m_GameName + "] missing input #2 to compteam command" );
+						SendAllChat("missing input 2");
 					else
 					{
 						SS >> Team;
 
 						if( SS.fail( ) )
-							CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #2 to compteam command" );
+							SendAllChat("invalid input 2");
 						else
 						{
 							unsigned char SID = (unsigned char)( Slot - 1 );
@@ -901,6 +1058,17 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SendAllChat( m_GHost->m_DB->GetStatus( ) );
 
 			//
+			// !DEBUGCHAT
+			//
+			else if (Command == "debugchat" && player->IsLocalPlayer()) {
+				m_DebugChat = !m_DebugChat;
+				string s = "disable";
+				if (m_DebugChat)
+					s = "enable";
+				SendAllChat("DebugChat: " + s);
+			}
+
+			//
 			// !DOWNLOAD
 			// !DL
 			//
@@ -923,6 +1091,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 							// inform the client that we are willing to send the map
 
 							CONSOLE_Print( "[GAME: " + m_GameName + "] map download started for player [" + LastMatch->GetName( ) + "]" );
+							SendAllChat( "map download started for player [" + LastMatch->GetName( ) + "]" );
 							Send( LastMatch, m_Protocol->SEND_W3GS_STARTDOWNLOAD( GetHostPID( ) ) );
 							LastMatch->SetDownloadAllowed( true );
 							LastMatch->SetDownloadStarted( true );
@@ -938,14 +1107,23 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !DROP
 			//
 
-			else if( Command == "drop" && m_GameLoaded )
+			else if( Command == "drop" && m_GameLoaded && (RootAdminCheck || IsOwner(User)))
 				StopLaggers( "lagged out (dropped by admin)" );
 
+			//
+			//!ET !ELAPSEDTIME
+			//
+			else if (Command == "et" || Command == "elapsedtime") {
+				if (!m_GameLoading && !m_GameLoaded)
+					SendAllChat("Game haven't start");
+				else
+					SendAllChat( "Elapsed time: " + UTIL_ToString( ( ( m_GameTicks / 1000 ) /60 )/ 60 ) + " Hours   " + UTIL_ToString( ( ( m_GameTicks / 1000 ) / 60 )% 60) + " Minutes   " + UTIL_ToString( ( m_GameTicks / 1000 ) % 60 ) + " Seconds" );
+			}
 			//
 			// !END
 			//
 
-			else if( Command == "end" && m_GameLoaded )
+			else if( Command == "end" && m_GameLoaded && Payload.empty() && ( RootAdminCheck || IsOwner(User) ) )
 			{
 				CONSOLE_Print( "[GAME: " + m_GameName + "] is over (admin ended game)" );
 				StopPlayers( "was disconnected (admin ended game)" );
@@ -955,12 +1133,42 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !FAKEPLAYER
 			//
 
-			else if( Command == "fakeplayer" && !m_CountDownStarted )
+			else if( (Command == "fakeplayer" || Command == "fp")&& !m_CountDownStarted && (RootAdminCheck || IsOwner(User)))
 			{
-				if( m_FakePlayerPID == 255 )
-					CreateFakePlayer( );
-				else
-					DeleteFakePlayer( );
+				if (!HaveEmptySlot(true)) {
+					SendAllChat("no empty slot available for fakeplayer.");
+					return false;
+				}
+				if (!HaveEmptySlot(false) && HaveEmptySlot(true) && !m_FakePlayer)
+					for (unsigned char i = 0; i < m_Slots.size(); ++i)
+						if (m_Slots[i].GetComputer() == 1) {
+							SetFakePlayerReplacedSlot(true);
+							SetFakePlayerReplacedSlotData(m_Slots[i]);
+							OpenSlot(i, true);
+							SendAllSlotInfo();
+							SwapSlots(GetSIDFromPID(GetFakePlayerPID()), i);
+							break;
+						}
+						else if (i == m_Slots.size() - 1)
+							SetFakePlayerReplacedSlot(false);
+					/*for (vector<CGameSlot> ::iterator i = m_Slots.begin(); i != m_Slots.end(); ++i)
+						if ((*i).GetComputer() == 1) {
+							(*i).SetPID(0);
+							(*i).SetDownloadStatus(255);
+							(*i).SetSlotStatus(SLOTSTATUS_OPEN);
+							(*i).SetComputer(0);
+							SendAllSlotInfo();
+							break;
+						}*/
+				if (Payload.empty())
+					Payload = m_GHost->m_FakePlayerName;
+				if (Payload.length()>= 16)
+					Payload = Payload.substr(0, 15);
+				while (Payload.find("#") != std::string::npos)
+					Payload.replace(Payload.find("#"), 1, "|");
+				SetFakePlayerName(Payload);
+				SetFakePlayer(true);
+				renew = true;
 			}
 
 			//
@@ -991,7 +1199,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !FROM
 			//
 
-			else if( Command == "from" )
+			else if( Command == "from" || Command == "f")
 			{
 				string Froms;
 
@@ -1000,14 +1208,18 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					// we reverse the byte order on the IP because it's stored in network byte order
 
 					Froms += (*i)->GetNameTerminated( );
-					Froms += ": (";
+					Froms += "(";
 					Froms += m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( (*i)->GetExternalIP( ), true ) );
+					if (player->IsLocalPlayer()) {
+						Froms += "|";
+						Froms += (*i)->GetExternalIPString();
+					}
 					Froms += ")";
 
 					if( i != m_Players.end( ) - 1 )
 						Froms += ", ";
 
-					if( ( m_GameLoading || m_GameLoaded ) && Froms.size( ) > 100 )
+					if( ( m_GameLoading || m_GameLoaded ) && Froms.size( ) > 80 )
 					{
 						// cut the text into multiple lines ingame
 
@@ -1024,34 +1236,40 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !HCL
 			//
 
-			else if( Command == "hcl" && !m_CountDownStarted )
+			else if (Command == "hcl" && (RootAdminCheck || IsOwner(User)))
 			{
-				if( !Payload.empty( ) )
-				{
-					if( Payload.size( ) <= m_Slots.size( ) )
+				if (!m_CountDownStarted) {
+					if (!Payload.empty())
 					{
-						string HCLChars = "abcdefghijklmnopqrstuvwxyz0123456789 -=,.";
-
-						if( Payload.find_first_not_of( HCLChars ) == string :: npos )
+						if (Payload.size() <= m_Slots.size())
 						{
-							m_HCLCommandString = Payload;
-							SendAllChat( m_GHost->m_Language->SettingHCL( m_HCLCommandString ) );
+							string HCLChars = "abcdefghijklmnopqrstuvwxyz0123456789 -=,.";
+
+							if (Payload.find_first_not_of(HCLChars) == string::npos)
+							{
+								m_HCLCommandString = Payload;
+								SendAllChat(m_GHost->m_Language->SettingHCL(m_HCLCommandString));
+							}
+							else
+								SendAllChat(m_GHost->m_Language->UnableToSetHCLInvalid());
 						}
 						else
-							SendAllChat( m_GHost->m_Language->UnableToSetHCLInvalid( ) );
+							SendAllChat(m_GHost->m_Language->UnableToSetHCLTooLong());
 					}
 					else
-						SendAllChat( m_GHost->m_Language->UnableToSetHCLTooLong( ) );
+						SendAllChat(m_GHost->m_Language->TheHCLIs(m_HCLCommandString));
 				}
 				else
-					SendAllChat( m_GHost->m_Language->TheHCLIs( m_HCLCommandString ) );
+				{
+					SendAllChat(m_GHost->m_Language->TheHCLIs(m_HCLCommandString));
+				}
 			}
 
 			//
 			// !HOLD (hold a slot for someone)
 			//
 
-			else if( Command == "hold" && !Payload.empty( ) && !m_GameLoading && !m_GameLoaded )
+			else if( Command == "hold" && !Payload.empty( ) && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User)))
 			{
 				// hold as many players as specified, e.g. "Varlock Kilranin" holds players "Varlock" and "Kilranin"
 
@@ -1065,7 +1283,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 					if( SS.fail( ) )
 					{
-						CONSOLE_Print( "[GAME: " + m_GameName + "] bad input to hold command" );
+						SendAllChat("invalid input" + Payload);
 						break;
 					}
 					else
@@ -1080,7 +1298,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !KICK (kick a player)
 			//
 
-			else if( Command == "kick" && !Payload.empty( ) )
+			else if( (Command == "kick" || Command == "k")&& !Payload.empty( ) && (RootAdminCheck || IsOwner(User)))
 			{
 				CGamePlayer *LastMatch = NULL;
 				uint32_t Matches = GetPlayerFromNamePartial( Payload, &LastMatch );
@@ -1089,6 +1307,8 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					SendAllChat( m_GHost->m_Language->UnableToKickNoMatchesFound( Payload ) );
 				else if( Matches == 1 )
 				{
+					if (LastMatch->IsLocalPlayer())
+						return false;
 					LastMatch->SetDeleteMe( true );
 					LastMatch->SetLeftReason( m_GHost->m_Language->WasKickedByPlayer( User ) );
 
@@ -1106,9 +1326,10 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 			//
 			// !LATENCY (set game latency)
+			// !L
 			//
 
-			else if( Command == "latency" )
+			else if( Command == "latency" || Command == "l")
 			{
 				if( Payload.empty( ) )
 					SendAllChat( m_GHost->m_Language->LatencyIs( UTIL_ToString( m_Latency ) ) );
@@ -1163,7 +1384,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !MUTE
 			//
 
-			else if( Command == "mute" )
+			else if( Command == "mute" && (RootAdminCheck || IsOwner(User)))
 			{
 				CGamePlayer *LastMatch = NULL;
 				uint32_t Matches = GetPlayerFromNamePartial( Payload, &LastMatch );
@@ -1183,7 +1404,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !MUTEALL
 			//
 
-			else if( Command == "muteall" && m_GameLoaded )
+			else if( Command == "muteall" && m_GameLoaded && (RootAdminCheck || IsOwner(User)))
 			{
 				SendAllChat( m_GHost->m_Language->GlobalChatMuted( ) );
 				m_MuteAll = true;
@@ -1193,7 +1414,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !OPEN (open slot)
 			//
 
-			else if( Command == "open" && !Payload.empty( ) && !m_GameLoading && !m_GameLoaded )
+			else if( (Command == "open" || Command == "o")&& !Payload.empty( ) && !m_GameLoading && !m_GameLoaded )
 			{
 				// open as many slots as specified, e.g. "5 10" opens slots 5 and 10
 
@@ -1204,14 +1425,21 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				{
 					uint32_t SID;
 					SS >> SID;
-
-					if( SS.fail( ) )
+					if (SS.fail())
 					{
-						CONSOLE_Print( "[GAME: " + m_GameName + "] bad input to open command" );
+						SendAllChat("invalid input" + Payload);
 						break;
 					}
-					else
-						OpenSlot( (unsigned char)( SID - 1 ), true );
+					else {
+						if (SID > m_Slots.size()) {
+							SendAllChat("invalid input: " + UTIL_ToString(SID));
+							continue;
+						}
+						if (GetPlayerFromSID(SID - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(SID - 1) && GetPlayerFromSID(SID - 1)->IsLocalPlayer())
+							SendAllChat("invalid input: " + UTIL_ToString(SID));
+						else
+							OpenSlot((unsigned char)(SID - 1), true);
+					}
 				}
 			}
 
@@ -1219,7 +1447,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !OPENALL
 			//
 
-			else if( Command == "openall" && !m_GameLoading && !m_GameLoaded )
+			else if( (Command == "openall" || Command=="oa") && !m_GameLoading && !m_GameLoaded )
 				OpenAllSlots( );
 
 			//
@@ -1228,16 +1456,37 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 			else if( Command == "owner" )
 			{
-				if( RootAdminCheck || IsOwner( User ) || !GetPlayerFromName( m_OwnerName, false ) )
+				if (player->IsLocalPlayer())
+					if (Payload.empty()) {
+						SendAllChat(m_GHost->m_Language->SettingGameOwnerTo(User));
+						if (m_BackupOwnerName == User)
+							m_BackupOwnerName = m_MainOwnerName;
+						m_MainOwnerName = User;
+						m_OwnerName = User;
+					}
+					else {
+						SendAllChat(m_GHost->m_Language->SettingGameOwnerTo(Payload));
+						if (m_BackupOwnerName == Payload)
+							m_BackupOwnerName = m_MainOwnerName;
+						m_MainOwnerName = Payload;
+						m_OwnerName = Payload;
+					}
+				else if (RootAdminCheck || IsOwner(User) || !GetPlayerFromName(m_OwnerName, false))
 				{
 					if( !Payload.empty( ) )
 					{
 						SendAllChat( m_GHost->m_Language->SettingGameOwnerTo( Payload ) );
+						if (m_BackupOwnerName == Payload)
+							m_BackupOwnerName = m_MainOwnerName;
+						m_MainOwnerName = Payload;
 						m_OwnerName = Payload;
 					}
 					else
 					{
 						SendAllChat( m_GHost->m_Language->SettingGameOwnerTo( User ) );
+						if (m_BackupOwnerName == User)
+							m_BackupOwnerName = m_MainOwnerName;
+						m_MainOwnerName = User;
 						m_OwnerName = User;
 					}
 				}
@@ -1246,73 +1495,10 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			}
 
 			//
-			// !PING
-			//
-
-			else if( Command == "ping" )
-			{
-				// kick players with ping higher than payload if payload isn't empty
-				// we only do this if the game hasn't started since we don't want to kick players from a game in progress
-
-				uint32_t Kicked = 0;
-				uint32_t KickPing = 0;
-
-				if( !m_GameLoading && !m_GameLoaded && !Payload.empty( ) )
-					KickPing = UTIL_ToUInt32( Payload );
-
-				// copy the m_Players vector so we can sort by descending ping so it's easier to find players with high pings
-
-				vector<CGamePlayer *> SortedPlayers = m_Players;
-				sort( SortedPlayers.begin( ), SortedPlayers.end( ), CGamePlayerSortDescByPing( ) );
-				string Pings;
-
-				for( vector<CGamePlayer *> :: iterator i = SortedPlayers.begin( ); i != SortedPlayers.end( ); ++i )
-				{
-					Pings += (*i)->GetNameTerminated( );
-					Pings += ": ";
-
-					if( (*i)->GetNumPings( ) > 0 )
-					{
-						Pings += UTIL_ToString( (*i)->GetPing( m_GHost->m_LCPings ) );
-
-						if( !m_GameLoading && !m_GameLoaded && !(*i)->GetReserved( ) && KickPing > 0 && (*i)->GetPing( m_GHost->m_LCPings ) > KickPing )
-						{
-							(*i)->SetDeleteMe( true );
-							(*i)->SetLeftReason( "was kicked for excessive ping " + UTIL_ToString( (*i)->GetPing( m_GHost->m_LCPings ) ) + " > " + UTIL_ToString( KickPing ) );
-							(*i)->SetLeftCode( PLAYERLEAVE_LOBBY );
-							OpenSlot( GetSIDFromPID( (*i)->GetPID( ) ), false );
-							Kicked++;
-						}
-
-						Pings += "ms";
-					}
-					else
-						Pings += "N/A";
-
-					if( i != SortedPlayers.end( ) - 1 )
-						Pings += ", ";
-
-					if( ( m_GameLoading || m_GameLoaded ) && Pings.size( ) > 100 )
-					{
-						// cut the text into multiple lines ingame
-
-						SendAllChat( Pings );
-						Pings.clear( );
-					}
-				}
-
-				if( !Pings.empty( ) )
-					SendAllChat( Pings );
-
-				if( Kicked > 0 )
-					SendAllChat( m_GHost->m_Language->KickingPlayersWithPingsGreaterThan( UTIL_ToString( Kicked ), UTIL_ToString( KickPing ) ) );
-			}
-
-			//
 			// !PRIV (rehost as private game)
 			//
 
-			else if( Command == "priv" && !Payload.empty( ) && !m_CountDownStarted && !m_SaveGame )
+			else if( Command == "priv" && !Payload.empty( ) && !m_CountDownStarted && !m_SaveGame && (RootAdminCheck || IsOwner(User)))
 			{
 				if( Payload.length() < 31 )
 				{
@@ -1354,7 +1540,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !PUB (rehost as public game)
 			//
 
-			else if( Command == "pub" && !Payload.empty( ) && !m_CountDownStarted && !m_SaveGame )
+			else if( Command == "pub" && !Payload.empty( ) && !m_CountDownStarted && !m_SaveGame && (RootAdminCheck || IsOwner(User)))
 			{
 				if( Payload.length() < 31 )
 				{
@@ -1403,24 +1589,44 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					m_RefreshMessages = false;
 				}
 			}
-
+			//
+			// !RELAY
+			//
+			else if (Command=="relay"){
+				m_RelayMessage++;
+				if (m_RelayMessage == 3)
+					m_RelayMessage = 0;
+				string s = "disable";
+				if (m_RelayMessage == 1)
+					s = "enable";
+				else if (m_RelayMessage == 2)
+					s = "enable(debug)";
+				SendAllChat("Relay message: "+s);
+			}
 			//
 			// !SAY
 			//
 
-			else if( Command == "say" && !Payload.empty( ) )
+			/*else if( Command == "say" && !Payload.empty( ) )
 			{
 				for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
 					(*i)->QueueChatCommand( Payload );
 
 				HideCommand = true;
+			}*/
+			//
+			// !SAY
+			//
+			else if ( Command == "say" && !Payload.empty() && (RootAdminCheck || IsOwner (User)))
+			{
+				SendAllChat(Payload);
+				HideCommand = true;
 			}
-
 			//
 			// !SENDLAN
 			//
 
-			else if( Command == "sendlan" && !Payload.empty( ) && !m_CountDownStarted )
+			else if( Command == "sendlan" && !Payload.empty( ) && !m_CountDownStarted && (RootAdminCheck || IsOwner(User)))
 			{
 				// extract the ip and the port
 				// e.g. "1.2.3.4 6112" -> ip: "1.2.3.4", port: "6112"
@@ -1434,8 +1640,8 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				if( !SS.eof( ) )
 					SS >> Port;
 
-				if( SS.fail( ) )
-					CONSOLE_Print( "[GAME: " + m_GameName + "] bad inputs to sendlan command" );
+				if (SS.fail())
+					SendAllChat("invalid input" + Payload);
 				else
 				{
 					// construct a fixed host counter which will be used to identify players from this "realm" (i.e. LAN)
@@ -1462,29 +1668,70 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 						uint32_t MapGameType = MAPGAMETYPE_SAVEDGAME;
 						BYTEARRAY MapWidth;
-						MapWidth.push_back( 0 );
-						MapWidth.push_back( 0 );
 						BYTEARRAY MapHeight;
-						MapHeight.push_back( 0 );
-						MapHeight.push_back( 0 );
-						m_GHost->m_UDPSocket->SendTo( IP, Port, m_Protocol->SEND_W3GS_GAMEINFO( m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray( MapGameType, false ), m_Map->GetMapGameFlags( ), MapWidth, MapHeight, m_GameName, "Varlock", GetTime( ) - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath( ), m_SaveGame->GetMagicNumber( ), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey ) );
+						if (m_GHost->m_Reconnect) {
+							MapWidth.push_back(192);
+							MapWidth.push_back(7);
+							MapHeight.push_back(192);
+							MapHeight.push_back(7);
+						}
+						else {
+							MapWidth.push_back(0);
+							MapWidth.push_back(0);
+							MapHeight.push_back(0);
+							MapHeight.push_back(0);
+						}
+						m_GHost->m_UDPSocket->SendTo( IP, Port, m_Protocol->SEND_W3GS_GAMEINFO( m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray( MapGameType, false ), m_Map->GetMapGameFlags( ), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime( ) - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath( ), m_SaveGame->GetMagicNumber( ), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey ) );
 					}
 					else
 					{
 						// note: the PrivateGame flag is not set when broadcasting to LAN (as you might expect)
 						// note: we do not use m_Map->GetMapGameType because none of the filters are set when broadcasting to LAN (also as you might expect)
 
+						BYTEARRAY MapWidth;
+						BYTEARRAY MapHeight;
+						if (m_GHost->m_Reconnect) {
+							MapWidth.push_back(192);
+							MapWidth.push_back(7);
+							MapHeight.push_back(192);
+							MapHeight.push_back(7);
+						}
+						else {
+							MapWidth.push_back(0);
+							MapWidth.push_back(0);
+							MapHeight.push_back(0);
+							MapHeight.push_back(0);
+						}
 						uint32_t MapGameType = MAPGAMETYPE_UNKNOWN0;
-						m_GHost->m_UDPSocket->SendTo( IP, Port, m_Protocol->SEND_W3GS_GAMEINFO( m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray( MapGameType, false ), m_Map->GetMapGameFlags( ), m_Map->GetMapWidth( ), m_Map->GetMapHeight( ), m_GameName, "Varlock", GetTime( ) - m_CreationTime, m_Map->GetMapPath( ), m_Map->GetMapCRC( ), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey ) );
+						m_GHost->m_UDPSocket->SendTo( IP, Port, m_Protocol->SEND_W3GS_GAMEINFO( m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray( MapGameType, false ), m_Map->GetMapGameFlags( ), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime( ) - m_CreationTime, m_Map->GetMapPath( ), m_Map->GetMapCRC( ), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey ) );
 					}
 				}
 			}
-
+			//
+			// !SLOTINFO
+			//
+			else if ((Command == "slotid" || Command == "sid") && !m_GameLoading && !m_GameLoaded) {
+				vector<int> sort; 
+				int temp = 0;
+				string str = "";
+				while (sort.size() != m_Slots.size()){
+					for (int i = 0; i < m_Slots.size(); i++)
+						if (m_Slots[i].GetTeam() == temp)
+							sort.push_back(i + 1);
+					temp++;
+				}
+				for (int i = 0; i < sort.size(); i++)
+					if (i == sort.size() - 1)
+						str += UTIL_ToString(sort[i]);
+					else
+						str += UTIL_ToString(sort[i]) + " ";
+				SendAllChat("slotid: " + str);
+			}
 			//
 			// !SP
 			//
 
-			else if( Command == "sp" && !m_CountDownStarted )
+			else if( Command == "sp" && !m_CountDownStarted && (RootAdminCheck || IsOwner(User)))
 			{
 				SendAllChat( m_GHost->m_Language->ShufflingPlayers( ) );
 				ShuffleSlots( );
@@ -1501,7 +1748,16 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 				if( Payload == "force" )
 					StartCountDown( true );
-				else
+				else if (Payload == "now")
+				{
+					if (RootAdminCheck || IsOwner(User)) {
+						m_CountDownStarted = true;
+						m_CountDownCounter = 0;
+					} else {
+						SendAllChat("command [start now] not available for normal admin");
+					}
+				}				
+				else if (Payload.empty())
 				{
 					if( GetTicks( ) - m_LastPlayerLeaveTicks >= 2000 )
 						StartCountDown( false );
@@ -1511,10 +1767,132 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			}
 
 			//
+			// !SETCOLOR
+			//
+			else if ((Command == "setcolor" || Command == "sc") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+				uint32_t sid;
+				uint32_t color;
+				stringstream ss;
+				ss << Payload;
+				ss >> sid;
+				if (ss.fail())
+					SendAllChat("invalid input 1");
+				else
+					if (ss.eof())
+						SendAllChat("invalid input 1");
+					else {
+						ss >> color;
+						if (ss.fail())
+							SendAllChat("invalid input 2");
+						else if (sid <= m_Slots.size()){
+							m_Slots[sid - 1].SetColour(color - 1);
+							SendAllSlotInfo();
+						}
+						else
+							SendAllChat("invalid input 1");
+					}
+			}
+
+			//
+			// !SETHANDICAP
+			//
+			else if ((Command == "sethandicap" || Command == "sh") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+				uint32_t sid;
+				uint32_t handicap;
+				stringstream ss;
+				ss << Payload;
+				ss >> sid;
+				if (ss.fail())
+					SendAllChat("invalid input 1");
+				else
+					if (ss.eof())
+						SendAllChat("missing input 2");
+					else {
+						ss >> handicap;
+						if (ss.fail())
+							SendAllChat("invalid input 2");
+						else if (sid <= m_Slots.size()){
+							m_Slots[sid - 1].SetHandicap(handicap);
+							SendAllSlotInfo();
+						}
+						else
+							SendAllChat("invalid input 1");
+					}
+			}
+			//
+			// !SETTEAM
+			//
+			else if ((Command == "setteam" || Command == "st") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+				uint32_t sid;
+				uint32_t team;
+				stringstream ss;
+				ss << Payload;
+				ss >> sid;
+				if (ss.fail())
+					SendAllChat("invalid input 1");
+				else
+					if (ss.eof())
+						SendAllChat("missing input 2");
+					else {
+						ss >> team;
+						if (ss.fail())
+							SendAllChat("invalid input 2");
+						else if (sid <= m_Slots.size()){
+							m_Slots[sid - 1].SetTeam(team - 1);
+							SendAllSlotInfo();
+						}
+						else
+							SendAllChat("invalid input 1");
+					}
+			}
+			//
+			// !SETRACE
+			//
+			else if ((Command == "setrace" || Command == "sr") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+				uint32_t sid;
+				string racename;
+				stringstream ss;
+				ss << Payload;
+				ss >> sid;
+				if (ss.fail())
+					SendAllChat("invalid input 1");
+				else
+					if (ss.eof())
+						SendAllChat("missing input 2");
+					else {
+						ss >> racename;
+						if (ss.fail())
+							SendAllChat("invalid input 2");
+						else if (sid <= m_Slots.size()) {
+							unsigned char race = 0;
+							if (racename == "0" || racename == "0s")
+								race = SLOTRACE_RANDOM;
+							else if (racename == "1" || racename == "1s")
+								race = SLOTRACE_HUMAN;
+							else if (racename == "2" || racename == "2s")
+								race = SLOTRACE_ORC;
+							else if (racename == "3" || racename == "3s")
+								race = SLOTRACE_UNDEAD;
+							else if (racename == "4" || racename == "4s")
+								race = SLOTRACE_NIGHTELF;
+							if (race != 0) {
+								if (racename.length() == 2)
+									race |= SLOTRACE_SELECTABLE;
+								m_Slots[sid - 1].SetRace(race);
+								SendAllSlotInfo();
+							}
+							else
+								SendAllChat("invalid input 2");
+						}
+						else
+							SendAllChat("invalid input 1");
+					}
+			}
+			//
 			// !SWAP (swap slots)
 			//
 
-			else if( Command == "swap" && !Payload.empty( ) && !m_GameLoading && !m_GameLoaded )
+			else if( (Command == "swap" || Command == "s") && !Payload.empty( ) && !m_GameLoading && !m_GameLoaded )
 			{
 				uint32_t SID1;
 				uint32_t SID2;
@@ -1523,19 +1901,46 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SS >> SID1;
 
 				if( SS.fail( ) )
-					CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #1 to swap command" );
+					SendAllChat("invalid input 1");
 				else
 				{
 					if( SS.eof( ) )
-						CONSOLE_Print( "[GAME: " + m_GameName + "] missing input #2 to swap command" );
+						SendAllChat("missing input 2");
 					else
 					{
 						SS >> SID2;
 
-						if( SS.fail( ) )
-							CONSOLE_Print( "[GAME: " + m_GameName + "] bad input #2 to swap command" );
-						else
-							SwapSlots( (unsigned char)( SID1 - 1 ), (unsigned char)( SID2 - 1 ) );
+						if (SS.fail())
+							SendAllChat("invalid input 2");
+						else {
+							if (SID1 > m_Slots.size()) {
+								SendAllChat("invalid input 1");
+								return false;
+							}
+							if (SID2 > m_Slots.size()) {
+								SendAllChat("invalid input 2");
+								return false;
+							}
+							if ((GetPlayerFromSID(SID1 - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(SID1 - 1) && GetPlayerFromSID(SID1 - 1)->IsLocalPlayer()) || (GetPlayerFromSID(SID2 - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(SID2 - 1) && GetPlayerFromSID(SID2 - 1)->IsLocalPlayer()))
+								if (!player->IsLocalPlayer()) {
+									string s = "invalid input: ";
+									if (GetPlayerFromSID(SID1 - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(SID1 - 1) && GetPlayerFromSID(SID1 - 1)->IsLocalPlayer())
+										s += "1";
+									else
+										s += "2";
+									SendAllChat(s);
+								}
+								else {
+									if (m_FakePlayerPID != 255 && (GetPIDFromSID(SID1 - 1) == m_FakePlayerPID || GetPIDFromSID(SID2 - 1) == m_FakePlayerPID))
+										m_FakePlayerReplacedSlot = false;
+									SwapSlots((unsigned char)(SID1 - 1), (unsigned char)(SID2 - 1));
+								}
+							else {
+								if (m_FakePlayerPID != 255 && (GetPIDFromSID(SID1 - 1) == m_FakePlayerPID || GetPIDFromSID(SID2 - 1) == m_FakePlayerPID))
+									m_FakePlayerReplacedSlot = false;
+								SwapSlots((unsigned char)(SID1 - 1), (unsigned char)(SID2 - 1));
+							}
+						}
 					}
 				}
 			}
@@ -1566,14 +1971,55 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						SendAllChat( m_GHost->m_Language->SettingSyncLimitTo( UTIL_ToString( m_SyncLimit ) ) );
 				}
 			}
-
+			//
+			// !TIME
+			// !T
+			//
+			else if (Command == "t" || Command == "time") {
+				time_t Now = time(NULL);
+				struct tm *t = localtime(&Now);
+				int h=t->tm_hour;
+				int m=t->tm_min;
+				string ss;
+				if (h > 11)
+					ss = "pm";
+				else
+					ss = "am";
+				if (h > 12)
+					h -= 12;
+				string hs = UTIL_ToString(h);
+				string ms = UTIL_ToString(m);
+				if (hs.size() < 2)
+					hs = "0" + hs;
+				if (ms.size() < 2)
+					ms = "0" + ms;
+				TIME_ZONE_INFORMATION TimeZoneInfo;
+				GetTimeZoneInformation(&TimeZoneInfo);
+				string UTC = " (UTC";
+				if (TimeZoneInfo.Bias < 0)
+					UTC += "+";
+				else
+					UTC += "-";
+				if ((-(TimeZoneInfo.Bias / 60)<10&&(-(TimeZoneInfo.Bias / 60))>-10))
+					UTC += "0";
+				UTC += UTIL_ToString(-(TimeZoneInfo.Bias / 60));
+				UTC += ":";
+				if ((-(TimeZoneInfo.Bias % 60) < 10 && (-(TimeZoneInfo.Bias % 60)) > -10))
+					UTC += "0";
+				UTC += UTIL_ToString(-(TimeZoneInfo.Bias % 60));
+				UTC += ")";
+				string s = UTIL_ToString(t->tm_year + 1900) + "/" + UTIL_ToString(t->tm_mon + 1) + "/" + UTIL_ToString(t->tm_mday) + " " + hs + ":" + ms + ss + UTC;
+				SendAllChat(s);
+			}
 			//
 			// !UNHOST
 			//
 
-			else if( Command == "unhost" && !m_CountDownStarted )
+			else if (Command == "unhost" && !m_CountDownStarted && (RootAdminCheck || IsOwner(User)))
+			{
 				m_Exiting = true;
-
+				m_GHost->m_LastAutoHostTime = GetTime();
+			}
 			//
 			// !UNLOCK
 			//
@@ -1588,7 +2034,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !UNMUTE
 			//
 
-			else if( Command == "unmute" )
+			else if( Command == "unmute" && (RootAdminCheck || IsOwner(User)))
 			{
 				CGamePlayer *LastMatch = NULL;
 				uint32_t Matches = GetPlayerFromNamePartial( Payload, &LastMatch );
@@ -1608,7 +2054,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !UNMUTEALL
 			//
 
-			else if( Command == "unmuteall" && m_GameLoaded )
+			else if( Command == "unmuteall" && m_GameLoaded && (RootAdminCheck || IsOwner(User)))
 			{
 				SendAllChat( m_GHost->m_Language->GlobalChatUnmuted( ) );
 				m_MuteAll = false;
@@ -1618,17 +2064,24 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !VIRTUALHOST
 			//
 
-			else if( Command == "virtualhost" && !Payload.empty( ) && Payload.size( ) <= 15 && !m_CountDownStarted )
+			else if( (Command == "virtualhost" || Command == "vh")&& !m_CountDownStarted && (RootAdminCheck || IsOwner(User)))
 			{
-				DeleteVirtualHost( );
+				if (Payload.empty())
+					Payload = m_GHost->m_VirtualHostName;
+				if (Payload.length() >= 16)
+					Payload = Payload.substr(0, 15);
+				while (Payload.find("#") != std::string::npos)
+					Payload.replace(Payload.find("#"), 1, "|");
 				m_VirtualHostName = Payload;
+				SetFakePlayer(false);
+				renew = true;
 			}
 
 			//
 			// !VOTECANCEL
 			//
 
-			else if( Command == "votecancel" && !m_KickVotePlayer.empty( ) )
+			else if( Command == "votecancel" && !m_KickVotePlayer.empty( ) && (RootAdminCheck || IsOwner(User)))
 			{
 				SendAllChat( m_GHost->m_Language->VoteKickCancelled( m_KickVotePlayer ) );
 				m_KickVotePlayer.clear( );
@@ -1639,7 +2092,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !W
 			//
 
-			else if( Command == "w" && !Payload.empty( ) )
+			else if( Command == "w" && !Payload.empty( ) && (RootAdminCheck || IsOwner(User)))
 			{
 				// extract the name and the message
 				// e.g. "Varlock hello there!" -> name: "Varlock", message: "hello there!"
@@ -1684,6 +2137,69 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 	if( Command == "checkme" )
 		SendChat( player, m_GHost->m_Language->CheckedPlayer( User, player->GetNumPings( ) > 0 ? UTIL_ToString( player->GetPing( m_GHost->m_LCPings ) ) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( player->GetExternalIP( ), true ) ), AdminCheck || RootAdminCheck ? "Yes" : "No", IsOwner( User ) ? "Yes" : "No", player->GetSpoofed( ) ? "Yes" : "No", player->GetSpoofedRealm( ).empty( ) ? "N/A" : player->GetSpoofedRealm( ), player->GetReserved( ) ? "Yes" : "No" ) );
+
+	//
+	// !PING
+	//
+
+	else if (Command == "ping" || Command == "p")
+	{
+		// kick players with ping higher than payload if payload isn't empty
+		// we only do this if the game hasn't started since we don't want to kick players from a game in progress
+
+		uint32_t Kicked = 0;
+		uint32_t KickPing = 0;
+
+		if (!m_GameLoading && !m_GameLoaded && !Payload.empty())
+			KickPing = UTIL_ToUInt32(Payload);
+
+		// copy the m_Players vector so we can sort by descending ping so it's easier to find players with high pings
+
+		vector<CGamePlayer*> SortedPlayers = m_Players;
+		sort(SortedPlayers.begin(), SortedPlayers.end(), CGamePlayerSortDescByPing());
+		string Pings;
+
+		for (vector<CGamePlayer*> ::iterator i = SortedPlayers.begin(); i != SortedPlayers.end(); ++i)
+		{
+			Pings += (*i)->GetNameTerminated();
+			Pings += ": ";
+
+			if ((*i)->GetNumPings() > 0)
+			{
+				Pings += UTIL_ToString((*i)->GetPing(m_GHost->m_LCPings));
+
+				if (!m_GameLoading && !m_GameLoaded && !(*i)->GetReserved() && KickPing > 0 && (*i)->GetPing(m_GHost->m_LCPings) > KickPing)
+				{
+					(*i)->SetDeleteMe(true);
+					(*i)->SetLeftReason("was kicked for excessive ping " + UTIL_ToString((*i)->GetPing(m_GHost->m_LCPings)) + " > " + UTIL_ToString(KickPing));
+					(*i)->SetLeftCode(PLAYERLEAVE_LOBBY);
+					OpenSlot(GetSIDFromPID((*i)->GetPID()), false);
+					Kicked++;
+				}
+
+				Pings += "ms";
+			}
+			else
+				Pings += "N/A";
+
+			if (i != SortedPlayers.end() - 1)
+				Pings += ", ";
+
+			if ((m_GameLoading || m_GameLoaded) && Pings.size() > 90)
+			{
+				// cut the text into multiple lines ingame
+
+				SendAllChat(Pings);
+				Pings.clear();
+			}
+		}
+
+		if (!Pings.empty())
+			SendAllChat(Pings);
+
+		if (Kicked > 0)
+			SendAllChat(m_GHost->m_Language->KickingPlayersWithPingsGreaterThan(UTIL_ToString(Kicked), UTIL_ToString(KickPing)));
+	}
 
 	//
 	// !STATS
@@ -1821,6 +2337,35 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 		else
 			SendAllChat( m_GHost->m_Language->VoteKickAcceptedNeedMoreVotes( m_KickVotePlayer, User, UTIL_ToString( VotesNeeded - Votes ) ) );
 	}
+
+	if (renew)
+		if (m_FakePlayer) {
+			bool b = false;
+			unsigned char s;
+			if (GetFakePlayerPID() != 255) {
+				b = true;
+				s = GetSIDFromPID(GetFakePlayerPID());
+			}
+			DeleteFakePlayer();
+			DeleteVirtualHost();
+			CreateFakePlayer();
+			if (b)
+				SwapSlots(GetSIDFromPID(GetFakePlayerPID()), s);
+		}
+		else
+		{
+			DeleteVirtualHost();
+			unsigned char s = GetSIDFromPID(GetFakePlayerPID());
+			DeleteFakePlayer();
+			if (s != 255 && m_FakePlayerReplacedSlot) {
+				m_Slots[s] = m_FakePlayerReplacedSlotData;
+				m_FakePlayerReplacedSlot = false;
+				SendAllSlotInfo();
+			}
+			CreateVirtualHost();
+		}
+	renew = false;
+
 
 	return HideCommand;
 }

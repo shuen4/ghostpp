@@ -37,16 +37,16 @@
 #include <string.h>
 
 #include <boost/filesystem.hpp>
-
+#include <windows.h>
 using namespace boost :: filesystem;
 
 //
 // CAdminGame
 //
 
-CAdminGame :: CAdminGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nPassword ) : CBaseGame( nGHost, nMap, nSaveGame, nHostPort, nGameState, nGameName, string( ), string( ), string( ) )
+CAdminGame :: CAdminGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nPassword ) : CBaseGame( nGHost, nMap, nSaveGame, nHostPort, nGameState, nGameName, string( ), string(), string( ), string( ) )
 {
-	m_VirtualHostName = "|cFFC04040Admin";
+	m_VirtualHostName = m_GHost->m_VirtualHostName;
 	m_MuteLobby = true;
 	m_Password = nPassword;
 	m_EntryKey = 0;
@@ -280,18 +280,20 @@ void CAdminGame :: SendAdminChat( string message )
 
 void CAdminGame :: SendWelcomeMessage( CGamePlayer *player )
 {
-	SendChat( player, "GHost++ Admin Game                     http://www.codelain.com/" );
-	SendChat( player, "-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-" );
 	SendChat( player, "Commands: addadmin, autohost, autohostmm, checkadmin" );
 	SendChat( player, "Commands: checkban, countadmins, countbans, deladmin" );
 	SendChat( player, "Commands: delban, disable, downloads, enable, end, enforcesg" );
 	SendChat( player, "Commands: exit, getgame, getgames, hostsg, load, loadsg" );
 	SendChat( player, "Commands: map, password, priv, privby, pub, pubby, quit" );
 	SendChat( player, "Commands: reload, say, saygame, saygames, unban, unhost, w" );
+	SendChat( player, "=======================================================" );
+	SendChat( player, "Login: use !pw <password> to login." );
 }
 
 void CAdminGame :: EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinPlayer *joinPlayer )
 {
+	m_VirtualHostName = m_GHost->m_VirtualHostName;
+	CreateVirtualHost();
 	uint32_t Time = GetTime( );
 
 	for( vector<TempBan> :: iterator i = m_TempBans.begin( ); i != m_TempBans.end( ); )
@@ -864,6 +866,87 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 		}
 
 		//
+		// !FL
+		// !FASTLOAD
+		//
+
+		else if (Command == "fl" || Command == "fastload") {
+			SendChat(player, "Searching File ...");
+			string SaveFile, ReplayFile, SaveFileNoPath;
+			string s = m_GHost->m_ReplayPath + "GHost++ *.w3g";
+			WIN32_FIND_DATAA FindFileData;
+			SendChat(player, "Searching " + s);
+			HANDLE hFind = FindFirstFileA((LPCSTR)s.c_str(), &FindFileData);
+			while (FindNextFileA(hFind, &FindFileData) != 0) {}
+			if (GetLastError() != ERROR_NO_MORE_FILES)
+			{
+				SendChat(player, "Replay File Not found!");
+				SendChat(player, " ");
+				SendChat(player, "ERROR: Missing Replay File");
+				FindClose(hFind);
+				return true;
+			}
+			ReplayFile = m_GHost->m_ReplayPath + string(FindFileData.cFileName);
+			FindClose(hFind);
+			s = m_GHost->m_SaveGamePath + "GHost++ AutoSave *.w3z";
+			if (!Payload.empty())
+				s = Payload;
+			SendChat(player, "Searching " + s);
+			hFind = FindFirstFileA((LPCSTR)s.c_str(), &FindFileData);
+			if (hFind == INVALID_HANDLE_VALUE)
+			{
+				SendChat(player, "Save File Not found!");
+				SendChat(player, " ");
+				SendChat(player, "ERROR: Missing Save File");
+				FindClose(hFind);
+				return true;
+			}
+			SaveFileNoPath = string(FindFileData.cFileName);
+			SaveFile = m_GHost->m_SaveGamePath + SaveFileNoPath;
+			FindClose(hFind);
+			SendChat(player, "Processing File ...");
+			CReplay* Replay = new CReplay();
+			Replay->Load(ReplayFile, false);
+			if (!Replay->GetValid()) {
+				SendChat(player, " ");
+				SendChat(player, "ERROR: Invalid replay.");
+				delete Replay;
+				return true;
+			}
+			SendChat(player, m_GHost->m_Language->LoadingReplay(ReplayFile));
+			Replay->ParseReplay(false);
+			m_GHost->m_EnforcePlayers = Replay->GetPlayers();
+			delete Replay;
+			SendChat(player, m_GHost->m_Language->LoadingSaveGame(SaveFile));
+			m_GHost->m_SaveGame->Load(SaveFile, false);
+			m_GHost->m_SaveGame->ParseSaveGame();
+			m_GHost->m_SaveGame->SetFileName(SaveFile);
+			m_GHost->m_SaveGame->SetFileNameNoPath(SaveFileNoPath);
+			if (m_GHost->m_CurrentGame)
+			{
+				if (m_GHost->m_CurrentGame->GetCountDownStarted()) {
+					SendChat(player, m_GHost->m_Language->UnableToUnhostGameCountdownStarted(m_GHost->m_CurrentGame->GetDescription()));
+					SendChat(player, " ");
+					SendChat(player, "ERROR: Unable to unhost Game.");
+					return true;
+				}
+				else
+				{
+					SendChat(player, m_GHost->m_Language->UnhostingGame(m_GHost->m_CurrentGame->GetDescription()));
+					m_GHost->m_CurrentGame->SetExiting(true);
+					m_GHost->m_LastAutoHostTime = GetTime();
+				}
+			}
+			SendChat(player, "Waiting 100ms delay for create game.");
+			Sleep(100);
+			m_GHost->CreateGame(m_GHost->m_Map, GAME_PRIVATE, true, m_GHost->m_AutoHostGameName, m_GHost->m_AutoHostOwner, m_GHost->m_AutoHostBackupOwner, m_GHost->m_AutoHostOwner, string(), false);
+			SendChat(player, "Done.");
+			SendChat(player, " ");
+			SendChat(player, "SaveFile: " + SaveFile);
+			SendChat(player, "ReplayFile: " + ReplayFile);
+		}
+
+		//
 		// !GETGAME
 		//
 
@@ -894,7 +977,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 		//
 
 		else if( Command == "hostsg" && !Payload.empty( ) )
-			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, true, Payload, User, User, string( ), false );
+			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, true, Payload, User, m_GHost->m_AutoHostBackupOwner, User, string( ), false );
 
 		//
 		// !LOAD (load config file)
@@ -927,8 +1010,8 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 
 						for( directory_iterator i( MapCFGPath ); i != EndIterator; ++i )
 						{
-							string FileName = i->path( ).filename( ).string( );
-							string Stem = i->path( ).stem( ).string( );
+							string FileName = i->path( ).filename( );
+							string Stem = i->path( ).stem( );
 							transform( FileName.begin( ), FileName.end( ), FileName.begin( ), (int(*)(int))tolower );
 							transform( Stem.begin( ), Stem.end( ), Stem.begin( ), (int(*)(int))tolower );
 
@@ -938,9 +1021,9 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 								++Matches;
 
 								if( FoundMapConfigs.empty( ) )
-									FoundMapConfigs = i->path( ).filename( ).string( );
+									FoundMapConfigs = i->path( ).filename( );
 								else
-									FoundMapConfigs += ", " + i->path( ).filename( ).string( );
+									FoundMapConfigs += ", " + i->path( ).filename( );
 
 								// if the pattern matches the filename exactly, with or without extension, stop any further matching
 
@@ -956,7 +1039,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 							SendChat( player, m_GHost->m_Language->NoMapConfigsFound( ) );
 						else if( Matches == 1 )
 						{
-							string File = LastMatch.filename( ).string( );
+							string File = LastMatch.filename( );
 							SendChat( player, m_GHost->m_Language->LoadingConfigFile( m_GHost->m_MapCFGPath + File ) );
 							CConfig MapCFG;
 							MapCFG.Read( LastMatch.string( ) );
@@ -1038,8 +1121,8 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 
 						for( directory_iterator i( MapPath ); i != EndIterator; ++i )
 						{
-							string FileName = i->path( ).filename( ).string( );
-							string Stem = i->path( ).stem( ).string( );
+							string FileName = i->path( ).filename( );
+							string Stem = i->path( ).stem( );
 							transform( FileName.begin( ), FileName.end( ), FileName.begin( ), (int(*)(int))tolower );
 							transform( Stem.begin( ), Stem.end( ), Stem.begin( ), (int(*)(int))tolower );
 
@@ -1049,9 +1132,9 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 								++Matches;
 
 								if( FoundMaps.empty( ) )
-									FoundMaps = i->path( ).filename( ).string( );
+									FoundMaps = i->path( ).filename( );
 								else
-									FoundMaps += ", " + i->path( ).filename( ).string( );
+									FoundMaps += ", " + i->path( ).filename( );
 
 								// if the pattern matches the filename exactly, with or without extension, stop any further matching
 
@@ -1067,7 +1150,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 							SendChat( player, m_GHost->m_Language->NoMapsFound( ) );
 						else if( Matches == 1 )
 						{
-							string File = LastMatch.filename( ).string( );
+							string File = LastMatch.filename( );
 							SendChat( player, m_GHost->m_Language->LoadingConfigFile( File ) );
 
 							// hackhack: create a config file in memory with the required information to load the map
@@ -1094,7 +1177,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 		//
 
 		else if( Command == "priv" && !Payload.empty( ) )
-			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, Payload, User, User, string( ), false );
+			m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, Payload, User, m_GHost->m_AutoHostBackupOwner, User, string( ), false );
 
 		//
 		// !PRIVBY (host private game by other player)
@@ -1113,7 +1196,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 			{
 				Owner = Payload.substr( 0, GameNameStart );
 				GameName = Payload.substr( GameNameStart + 1 );
-				m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, GameName, Owner, User, string( ), false );
+				m_GHost->CreateGame( m_GHost->m_Map, GAME_PRIVATE, false, GameName, Owner, m_GHost->m_AutoHostBackupOwner, User, string( ), false );
 			}
 		}
 
@@ -1122,7 +1205,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 		//
 
 		else if( Command == "pub" && !Payload.empty( ) )
-			m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, Payload, User, User, string( ), false );
+			m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, Payload, User, m_GHost->m_AutoHostBackupOwner, User, string( ), false );
 
 		//
 		// !PUBBY (host public game by other player)
@@ -1141,7 +1224,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 			{
 				Owner = Payload.substr( 0, GameNameStart );
 				GameName = Payload.substr( GameNameStart + 1 );
-				m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, GameName, Owner, User, string( ), false );
+				m_GHost->CreateGame( m_GHost->m_Map, GAME_PUBLIC, false, GameName, Owner, m_GHost->m_AutoHostBackupOwner, User, string( ), false );
 			}
 		}
 
@@ -1195,7 +1278,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 						Message = Message.substr( Start );
 
 					if( GameNumber - 1 < m_GHost->m_Games.size( ) )
-						m_GHost->m_Games[GameNumber - 1]->SendAllChat( "ADMIN: " + Message );
+						m_GHost->m_Games[GameNumber - 1]->SendAllChat( Message );
 					else
 						SendChat( player, m_GHost->m_Language->GameNumberDoesntExist( UTIL_ToString( GameNumber ) ) );
 				}
@@ -1212,7 +1295,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 				m_GHost->m_CurrentGame->SendAllChat( Payload );
 
 			for( vector<CBaseGame *> :: iterator i = m_GHost->m_Games.begin( ); i != m_GHost->m_Games.end( ); ++i )
-				(*i)->SendAllChat( "ADMIN: " + Payload );
+				(*i)->SendAllChat( Payload );
 		}
 
 		//
@@ -1229,6 +1312,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 				{
 					SendChat( player, m_GHost->m_Language->UnhostingGame( m_GHost->m_CurrentGame->GetDescription( ) ) );
 					m_GHost->m_CurrentGame->SetExiting( true );
+					m_GHost->m_LastAutoHostTime = GetTime();
 				}
 			}
 			else
@@ -1269,7 +1353,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 	// !PASSWORD
 	//
 
-	if( Command == "password" && !player->GetLoggedIn( ) )
+	if( ( Command == "password" || Command == "pw" ) && !player->GetLoggedIn( ) )
 	{
 		if( !m_Password.empty( ) && Payload == m_Password )
 		{
@@ -1284,7 +1368,7 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 			CONSOLE_Print( "[ADMINGAME] user [" + User + "] login attempt failed" );
 			SendChat( player, m_GHost->m_Language->AdminInvalidPassword( UTIL_ToString( LoginAttempts ) ) );
 
-			if( LoginAttempts >= 1 )
+			if( LoginAttempts >= 10 )
 			{
 				player->SetDeleteMe( true );
 				player->SetLeftReason( "was kicked for too many failed login attempts" );

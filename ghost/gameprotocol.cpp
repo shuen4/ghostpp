@@ -373,14 +373,20 @@ BYTEARRAY CGameProtocol :: SEND_W3GS_PLAYERINFO( unsigned char PID, string name,
 		UTIL_AppendByteArrayFast( packet, name );							// player name
 		packet.push_back( 1 );												// ???
 		packet.push_back( 0 );												// ???
-		packet.push_back( 2 );												// AF_INET
+		if (m_GHost->m_HideIPAddresses)										// AF_INET
+			packet.push_back(0);
+		else
+			packet.push_back( 2 );
 		packet.push_back( 0 );												// AF_INET continued...
 		packet.push_back( 0 );												// port
 		packet.push_back( 0 );												// port continued...
 		UTIL_AppendByteArrayFast( packet, externalIP );						// external IP
 		UTIL_AppendByteArray( packet, Zeros, 4 );							// ???
 		UTIL_AppendByteArray( packet, Zeros, 4 );							// ???
-		packet.push_back( 2 );												// AF_INET
+		if (m_GHost->m_HideIPAddresses)										// AF_INET
+			packet.push_back(0);
+		else
+			packet.push_back(2);
 		packet.push_back( 0 );												// AF_INET continued...
 		packet.push_back( 0 );												// port
 		packet.push_back( 0 );												// port continued...

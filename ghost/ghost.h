@@ -84,6 +84,7 @@ public:
 	uint32_t m_HostCounter;					// the current host counter (a unique number to identify a game, incremented each time a game is created)
 	string m_AutoHostGameName;				// the base game name to auto host with
 	string m_AutoHostOwner;
+	string m_AutoHostBackupOwner;
 	string m_AutoHostServer;
 	uint32_t m_AutoHostMaximumGames;		// maximum number of games to auto host
 	uint32_t m_AutoHostAutoStartPlayers;	// when using auto hosting auto start the game when this many players have joined
@@ -93,6 +94,7 @@ public:
 	double m_AutoHostMaximumScore;
 	bool m_AllGamesFinished;				// if all games finished (used when exiting nicely)
 	uint32_t m_AllGamesFinishedTime;		// GetTime when all games finished (used when exiting nicely)
+	bool m_FakePlayer;						// config value: fakeplayer instead of virtual host
 	string m_LanguageFile;					// config value: language file
 	string m_Warcraft3Path;					// config value: Warcraft 3 path
 	bool m_TFT;								// config value: TFT enabled or not
@@ -109,6 +111,7 @@ public:
 	bool m_SaveReplays;						// config value: save replays
 	string m_ReplayPath;					// config value: replay path
 	string m_VirtualHostName;				// config value: virtual host name
+	string m_FakePlayerName;				// config value: fake player name
 	bool m_HideIPAddresses;					// config value: hide IP addresses from players
 	bool m_CheckMultipleIPUsage;			// config value: check for multiple IP address usage
 	uint32_t m_SpoofChecks;					// config value: do automatic spoof checks or not
@@ -174,10 +177,8 @@ public:
 	void ReloadConfigs( );
 	void SetConfigs( CConfig *CFG );
 	void ExtractScripts( );
-	void ExtractScriptsAfter130( string PatchMPQFileName );
-	void ExtractScriptsPre130( string PatchMPQFileName );
 	void LoadIPToCountryData( );
-	void CreateGame( CMap *map, unsigned char gameState, bool saveGame, string gameName, string ownerName, string creatorName, string creatorServer, bool whisper );
+	void CreateGame( CMap *map, unsigned char gameState, bool saveGame, string gameName, string ownerName, string backupOwnerName, string creatorName, string creatorServer, bool whisper );
 };
 
 #endif

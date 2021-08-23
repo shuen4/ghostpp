@@ -19,17 +19,6 @@
 */
 
 #include "ghost.h"
-
-namespace CASC{
-    #define __CASCLIB_SELF__
-    #include <CascLib.h>
-}
-
-namespace MPQ{
-    #define __STORMLIB_SELF__
-    #include <StormLib.h>
-}
-
 #include "util.h"
 #include "crc32.h"
 #include "sha1.h"
@@ -50,13 +39,52 @@ namespace MPQ{
 #include "game_base.h"
 #include "game.h"
 #include "game_admin.h"
-
 #include <signal.h>
 #include <stdlib.h>
 
 #ifdef WIN32
  #include <ws2tcpip.h>		// for WSAIoctl
 #endif
+
+#define __STORMLIB_SELF__
+#include <stormlib/StormLib.h>
+
+/*
+
+#include "ghost.h"
+#include "util.h"
+#include "crc32.h"
+#include "sha1.h"
+#include "csvparser.h"
+#include "config.h"
+#include "language.h"
+#include "socket.h"
+#include "commandpacket.h"
+#include "ghostdb.h"
+#include "ghostdbsqlite.h"
+#include "ghostdbmysql.h"
+#include "bncsutilinterface.h"
+#include "warden.h"
+#include "bnlsprotocol.h"
+#include "bnlsclient.h"
+#include "bnetprotocol.h"
+#include "bnet.h"
+#include "map.h"
+#include "packed.h"
+#include "savegame.h"
+#include "replay.h"
+#include "gameslot.h"
+#include "gameplayer.h"
+#include "gameprotocol.h"
+#include "gpsprotocol.h"
+#include "game_base.h"
+#include "game.h"
+#include "game_admin.h"
+#include "stats.h"
+#include "statsdota.h"
+#include "sqlite3.h"
+
+*/
 
 #ifdef WIN32
  #include <windows.h>
@@ -72,7 +100,6 @@ namespace MPQ{
 #ifdef __APPLE__
  #include <mach/mach_time.h>
 #endif
-
 string gCFGFile;
 string gLogFile;
 uint32_t gLogMethod;
@@ -139,12 +166,10 @@ void SignalCatcher( int s )
 	else
 		exit( 1 );
 }
-
 void CONSOLE_Print( string message )
 {
 	boost::mutex::scoped_lock printLock( PrintMutex );
 	cout << message << endl;
-
 	// logging
 
 	if( !gLogFile.empty( ) )
@@ -204,13 +229,18 @@ void DEBUG_Print( BYTEARRAY b )
 // main
 //
 
-int main( int argc, char **argv )
+int main(int argc, char** argv)
 {
-	srand( time( NULL ) );
+	srand(time(NULL));
 
-	gCFGFile = "ghost.cfg";
+	char s[4096];
+	GetModuleFileNameA(NULL, s, sizeof(s));
+	char s1[4096];
+	_splitpath(s, NULL, NULL, s1, NULL);
+	gCFGFile = s1;
+	gCFGFile += ".cfg";
 
-	if( argc > 1 && argv[1] )
+	if (argc > 1 && argv[1])
 		gCFGFile = argv[1];
 
 	// read config file
@@ -219,6 +249,7 @@ int main( int argc, char **argv )
 	CFG.Read( "default.cfg" );
 	CFG.Read( gCFGFile );
 	gLogFile = CFG.GetString( "bot_log", string( ) );
+	remove(gLogFile.c_str());
 	gLogMethod = CFG.GetInt( "bot_logmethod", 1 );
 
 	if( !gLogFile.empty( ) )
@@ -324,7 +355,10 @@ int main( int argc, char **argv )
 	// initialize ghost
 
 	gGHost = new CGHost( &CFG );
+	
 
+	// instant host
+	gGHost->m_LastAutoHostTime = GetTime() - 30;
 	while( 1 )
 	{
 		// block for 50ms on all sockets - if you intend to perform any timed actions more frequently you should change this
@@ -378,6 +412,7 @@ CGHost :: CGHost( CConfig *CFG )
 	m_SHA = new CSHA1( );
 	m_CurrentGame = NULL;
 	string DBType = CFG->GetString( "db_type", "sqlite3" );
+	
 	CONSOLE_Print( "[GHOST] opening primary database" );
 
 	if( DBType == "mysql" )
@@ -456,17 +491,18 @@ CGHost :: CGHost( CConfig *CFG )
 		}
 	}
 #endif
-
 	m_Language = NULL;
 	m_Exiting = false;
 	m_ExitingNice = false;
 	m_Enabled = true;
-	m_Version = "17.2";
+	m_Version = "17.2E";
 	m_HostCounter = 1;
+	m_FakePlayer = CFG->GetInt("bot_fakeplayer", 1) == 0 ? false : true;
 	m_AutoHostMaximumGames = CFG->GetInt( "autohost_maxgames", 0 );
 	m_AutoHostAutoStartPlayers = CFG->GetInt( "autohost_startplayers", 0 );
 	m_AutoHostGameName = CFG->GetString( "autohost_gamename", string( ) );
 	m_AutoHostOwner = CFG->GetString( "autohost_owner", string( ) );
+	m_AutoHostBackupOwner = CFG->GetString( "autohost_backupowner", string( ) );
 	m_LastAutoHostTime = GetTime( );
 	m_AutoHostMatchMaking = false;
 	m_AutoHostMinimumScore = 0.0;
@@ -488,8 +524,9 @@ CGHost :: CGHost( CConfig *CFG )
 	m_AdminGamePort = CFG->GetInt( "admingame_port", 6113 );
 	m_AdminGamePassword = CFG->GetString( "admingame_password", string( ) );
 	m_AdminGameMap = CFG->GetString( "admingame_map", string( ) );
-	m_LANWar3Version = CFG->GetInt( "lan_war3version", 30 );
-	m_ReplayWar3Version = CFG->GetInt( "replay_war3version", 30 );
+	m_LANWar3Version = CFG->GetInt( "lan_war3version", 29 );
+	MAX_SLOTS = (m_LANWar3Version <= char(28) ? 12 : 24);
+	m_ReplayWar3Version = CFG->GetInt( "replay_war3version", 29 );
 	m_ReplayBuildNumber = CFG->GetInt( "replay_buildnumber", 6060 );
 	SetConfigs( CFG );
 
@@ -507,6 +544,8 @@ CGHost :: CGHost( CConfig *CFG )
 
 		string Server = CFG->GetString( Prefix + "server", string( ) );
 		string ServerAlias = CFG->GetString( Prefix + "serveralias", string( ) );
+		string BackupIP = CFG->GetString(Prefix + "backupip", string());
+		string BackupPort = CFG->GetString(Prefix + "backupport", "6112");
 		string CDKeyROC = CFG->GetString( Prefix + "cdkeyroc", string( ) );
 		string CDKeyTFT = CFG->GetString( Prefix + "cdkeytft", string( ) );
 		string CountryAbbrev = CFG->GetString( Prefix + "countryabbrev", "USA" );
@@ -534,13 +573,13 @@ CGHost :: CGHost( CConfig *CFG )
 		if( BNETCommandTrigger.empty( ) )
 			BNETCommandTrigger = "!";
 
-		bool HoldFriends = CFG->GetInt( Prefix + "holdfriends", 1 ) != 0;
-		bool HoldClan = CFG->GetInt( Prefix + "holdclan", 1 ) != 0;
-		bool PublicCommands = CFG->GetInt( Prefix + "publiccommands", 1 ) != 0;
+		bool HoldFriends = CFG->GetInt( Prefix + "holdfriends", 1 ) == 0 ? false : true;
+		bool HoldClan = CFG->GetInt( Prefix + "holdclan", 1 ) == 0 ? false : true;
+		bool PublicCommands = CFG->GetInt( Prefix + "publiccommands", 1 ) == 0 ? false : true;
 		string BNLSServer = CFG->GetString( Prefix + "bnlsserver", string( ) );
 		int BNLSPort = CFG->GetInt( Prefix + "bnlsport", 9367 );
 		int BNLSWardenCookie = CFG->GetInt( Prefix + "bnlswardencookie", 0 );
-		unsigned char War3Version = CFG->GetInt( Prefix + "custom_war3version", 30 );
+		unsigned char War3Version = CFG->GetInt( Prefix + "custom_war3version", 29 );
 		BYTEARRAY EXEVersion = UTIL_ExtractNumbers( CFG->GetString( Prefix + "custom_exeversion", string( ) ), 4 );
 		BYTEARRAY EXEVersionHash = UTIL_ExtractNumbers( CFG->GetString( Prefix + "custom_exeversionhash", string( ) ), 4 );
 		string PasswordHashType = CFG->GetString( Prefix + "custom_passwordhashtype", string( ) );
@@ -585,7 +624,7 @@ CGHost :: CGHost( CConfig *CFG )
 #endif
 		}
 
-		m_BNETs.push_back( new CBNET( this, Server, ServerAlias, BNLSServer, (uint16_t)BNLSPort, (uint32_t)BNLSWardenCookie, CDKeyROC, CDKeyTFT, CountryAbbrev, Country, LocaleID, UserName, UserPassword, FirstChannel, RootAdmin, BNETCommandTrigger[0], HoldFriends, HoldClan, PublicCommands, War3Version, EXEVersion, EXEVersionHash, PasswordHashType, PVPGNRealmName, MaxMessageLength, i ) );
+		m_BNETs.push_back( new CBNET( this, Server, ServerAlias,BackupIP,BackupPort, BNLSServer, (uint16_t)BNLSPort, (uint32_t)BNLSWardenCookie, CDKeyROC, CDKeyTFT, CountryAbbrev, Country, LocaleID, UserName, UserPassword, FirstChannel, RootAdmin, BNETCommandTrigger[0], HoldFriends, HoldClan, PublicCommands, War3Version, EXEVersion, EXEVersionHash, PasswordHashType, PVPGNRealmName, MaxMessageLength, i ) );
 	}
 
 	if( m_BNETs.empty( ) )
@@ -647,9 +686,8 @@ CGHost :: CGHost( CConfig *CFG )
 	if( m_AdminGameCreate )
 	{
 		CONSOLE_Print( "[GHOST] creating admin game" );
-		m_AdminGame = new CAdminGame( this, m_AdminMap, NULL, m_AdminGamePort, 0, "GHost++ Admin Game", m_AdminGamePassword );
+		m_AdminGame = new CAdminGame( this, m_AdminMap, NULL, m_AdminGamePort, 0, "|c0060ff00GHost++ Admin Game|r", m_AdminGamePassword );
 		boost::thread(&CBaseGame::loop, m_AdminGame);
-
 		if( m_AdminGamePort == m_HostPort )
 			CONSOLE_Print( "[GHOST] warning - admingame_port and bot_hostport are set to the same value, you won't be able to host any games" );
 	}
@@ -1044,7 +1082,7 @@ bool CGHost :: Update( long usecBlock )
 
 	// autohost
 
-	if( !m_AutoHostGameName.empty( ) && m_AutoHostMaximumGames != 0 && m_AutoHostAutoStartPlayers != 0 && GetTime( ) - m_LastAutoHostTime >= 30 )
+	if( !m_AutoHostGameName.empty( ) && m_AutoHostMaximumGames != 0 && GetTime( ) - m_LastAutoHostTime >= 5 )
 	{
 		// copy all the checks from CGHost :: CreateGame here because we don't want to spam the chat when there's an error
 		// instead we fail silently and try again soon
@@ -1053,16 +1091,32 @@ bool CGHost :: Update( long usecBlock )
 		{
 			if( m_AutoHostMap->GetValid( ) )
 			{
-				string GameName = m_AutoHostGameName + " #" + UTIL_ToString( m_HostCounter );
+				string GameName = m_AutoHostGameName;
 
 				if( GameName.size( ) <= 31 )
 				{
-					CreateGame( m_AutoHostMap, GAME_PUBLIC, false, GameName, m_AutoHostOwner, m_AutoHostOwner, m_AutoHostServer, false );
+					CreateGame( m_AutoHostMap, GAME_PUBLIC, false, GameName, m_AutoHostOwner, m_AutoHostBackupOwner, m_AutoHostOwner, m_AutoHostServer, false );
 
 					if( m_CurrentGame )
 					{
-						m_CurrentGame->SetAutoStartPlayers( m_AutoHostAutoStartPlayers );
-
+						if (m_FakePlayer) {
+							m_CurrentGame->SetFakePlayer(true);
+							m_CurrentGame->SetFakePlayerName(m_FakePlayerName);
+							m_CurrentGame->CreateFakePlayer();
+							for (unsigned char i = 0; i < m_CurrentGame->m_Slots.size(); ++i)
+								if (m_CurrentGame->m_Slots[i].GetComputer() == 1) {
+									m_CurrentGame->SetFakePlayerReplacedSlot(true);
+									m_CurrentGame->SetFakePlayerReplacedSlotData(m_CurrentGame->m_Slots[i]);
+									m_CurrentGame->OpenSlot(i, true);
+									m_CurrentGame->SendAllSlotInfo();
+									m_CurrentGame->SwapSlots(m_CurrentGame->GetSIDFromPID(m_CurrentGame->GetFakePlayerPID()), i);
+									break;
+								}
+								else if (i == m_CurrentGame->m_Slots.size() - 1)
+									m_CurrentGame->SetFakePlayerReplacedSlot(false);
+						}
+						else
+							m_CurrentGame->SetFakePlayer(false);
 						if( m_AutoHostMatchMaking )
 						{
 							if( !m_Map->GetMapMatchMakingCategory( ).empty( ) )
@@ -1142,8 +1196,8 @@ void CGHost :: EventBNETLoggedIn( CBNET *bnet )
 
 void CGHost :: EventBNETGameRefreshed( CBNET *bnet )
 {
-	if( m_AdminGame )
-		m_AdminGame->SendAllChat( m_Language->BNETGameHostingSucceeded( bnet->GetServer( ) ) );
+	/*if( m_AdminGame )
+		m_AdminGame->SendAllChat( m_Language->BNETGameHostingSucceeded( bnet->GetServer( ) ) );*/
 
 	boost::mutex::scoped_lock lock( m_GamesMutex );
 	
@@ -1260,6 +1314,7 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	m_SaveReplays = CFG->GetInt( "bot_savereplays", 0 ) == 0 ? false : true;
 	m_ReplayPath = UTIL_AddPathSeperator( CFG->GetString( "bot_replaypath", string( ) ) );
 	m_VirtualHostName = CFG->GetString( "bot_virtualhostname", "|cFF4080C0GHost" );
+	m_FakePlayerName = CFG->GetString("bot_fakeplayername", m_VirtualHostName);
 	m_HideIPAddresses = CFG->GetInt( "bot_hideipaddresses", 0 ) == 0 ? false : true;
 	m_CheckMultipleIPUsage = CFG->GetInt( "bot_checkmultipleipusage", 1 ) == 0 ? false : true;
 
@@ -1267,6 +1322,11 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	{
 		m_VirtualHostName = "|cFF4080C0GHost";
 		CONSOLE_Print( "[GHOST] warning - bot_virtualhostname is longer than 15 characters, using default virtual host name" );
+	}
+	if (m_FakePlayerName.size() > 15)
+	{
+		m_FakePlayerName = "|cFF4080C0GHost";
+		CONSOLE_Print("[GHOST] warning - bot_fakeplayername is longer than 15 characters, using virtual host name");
 	}
 
 	m_SpoofChecks = CFG->GetInt( "bot_spoofchecks", 2 );
@@ -1298,170 +1358,84 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	m_MOTDFile = CFG->GetString( "bot_motdfile", "motd.txt" );
 	m_GameLoadedFile = CFG->GetString( "bot_gameloadedfile", "gameloaded.txt" );
 	m_GameOverFile = CFG->GetString( "bot_gameoverfile", "gameover.txt" );
-	m_LocalAdminMessages = CFG->GetInt( "bot_localadminmessages", 1 ) != 0;
-	m_TCPNoDelay = CFG->GetInt( "tcp_nodelay", 0 ) != 0;
+	m_LocalAdminMessages = CFG->GetInt( "bot_localadminmessages", 1 ) == 0 ? false : true;
+	m_TCPNoDelay = CFG->GetInt( "tcp_nodelay", 0 ) == 0 ? false : true;
 	m_MatchMakingMethod = CFG->GetInt( "bot_matchmakingmethod", 1 );
 	m_MapGameType = CFG->GetUInt32( "bot_mapgametype", 0 );
 }
 
 void CGHost :: ExtractScripts( )
 {
-    bool extractCasc = false;
-
-	string PatchMPQFileName = m_Warcraft3Path + "War3x.mpq";
+	string PatchMPQFileName = m_Warcraft3Path + "War3Patch.mpq";
 
 	if( !UTIL_FileExists( PatchMPQFileName ) )
-		PatchMPQFileName = m_Warcraft3Path + "War3Patch.mpq";
+		PatchMPQFileName = m_Warcraft3Path + "War3x.mpq";
 
-    if( !UTIL_FileExists( PatchMPQFileName ) ){
-        extractCasc = true;
-        PatchMPQFileName = m_Warcraft3Path + "/Data";
-    }
+	HANDLE PatchMPQ;
 
-    if( !UTIL_FileExists( PatchMPQFileName ) ){
-        CONSOLE_Print( "[GHOST] warning - mpq file and exe file not found");
-    }
-    else{
-        if(extractCasc){
-            ExtractScriptsAfter130( PatchMPQFileName );
-        }
-        else{
-            ExtractScriptsPre130( PatchMPQFileName );
-        }
-    }
-}
+	if( SFileOpenArchive( PatchMPQFileName.c_str( ), 0, MPQ_OPEN_FORCE_MPQ_V1, &PatchMPQ ) )
+	{
+		CONSOLE_Print( "[GHOST] loading MPQ file [" + PatchMPQFileName + "]" );
+		HANDLE SubFile;
 
-void CGHost :: ExtractScriptsAfter130( string PatchMPQFileName){
-    CASC::HANDLE cascStorage;
+		// common.j
 
-    if( CASC::CascOpenStorage( PatchMPQFileName.c_str( ), LANG_NEUTRAL, &cascStorage) ){
-        CONSOLE_Print( "[GHOST] loading CASC file [" + PatchMPQFileName + "]" );
+		if( SFileOpenFileEx( PatchMPQ, "Scripts\\common.j", 0, &SubFile ) )
+		{
+			uint32_t FileLength = SFileGetFileSize( SubFile, NULL );
 
-        CASC::HANDLE subFile;
+			if( FileLength > 0 && FileLength != 0xFFFFFFFF )
+			{
+				char *SubFileData = new char[FileLength];
+				DWORD BytesRead = 0;
 
-        if(CASC::CascOpenFile(cascStorage,  "war3.mpq:scripts\\common.j", 0, 0, &subFile)){
-            uint32_t FileLength = CASC::CascGetFileSize( subFile, NULL );
+				if( SFileReadFile( SubFile, SubFileData, FileLength, &BytesRead, NULL ) )
+				{
+					CONSOLE_Print( "[GHOST] extracting Scripts\\common.j from MPQ file to [" + m_MapCFGPath + "common.j]" );
+					UTIL_FileWrite( m_MapCFGPath + "common.j", (unsigned char *)SubFileData, BytesRead );
+				}
+				else
+					CONSOLE_Print( "[GHOST] warning - unable to extract Scripts\\common.j from MPQ file" );
 
-            if( FileLength > 0 && FileLength != 0xFFFFFFFF )
-            {
-                char *SubFileData = new char[FileLength];
-                DWORD BytesRead = 0;
+				delete [] SubFileData;
+			}
 
-                if( CASC::CascReadFile( subFile, SubFileData, FileLength, &BytesRead ) )
-                {
-                    CONSOLE_Print( "[GHOST] extracting Scripts\\common.j from CASC file to [" + m_MapCFGPath + "common.j]" );
-                    UTIL_FileWrite( m_MapCFGPath + "common.j", (unsigned char *)SubFileData, BytesRead );
-                }
-                else
-                    CONSOLE_Print( "[GHOST] warning - unable to extract Scripts\\common.j from CASC file" );
+			SFileCloseFile( SubFile );
+		}
+		else
+			CONSOLE_Print( "[GHOST] couldn't find Scripts\\common.j in MPQ file" );
 
-                delete [] SubFileData;
-            }
+		// blizzard.j
 
-            CASC::CascCloseFile(subFile);
-        }
-        else{
-            CONSOLE_Print( "[GHOST] couldn't find Scripts\\common.j in CASC file" );
-        }
+		if( SFileOpenFileEx( PatchMPQ, "Scripts\\blizzard.j", 0, &SubFile ) )
+		{
+			uint32_t FileLength = SFileGetFileSize( SubFile, NULL );
 
-        if(CASC::CascOpenFile(cascStorage,  "war3.mpq:scripts\\blizzard.j", 0, 0, &subFile)){
-            uint32_t FileLength = CASC::CascGetFileSize( subFile, NULL );
+			if( FileLength > 0 && FileLength != 0xFFFFFFFF )
+			{
+				char *SubFileData = new char[FileLength];
+				DWORD BytesRead = 0;
 
-            if( FileLength > 0 && FileLength != 0xFFFFFFFF )
-            {
-                char *SubFileData = new char[FileLength];
-                DWORD BytesRead = 0;
+				if( SFileReadFile( SubFile, SubFileData, FileLength, &BytesRead, NULL ) )
+				{
+					CONSOLE_Print( "[GHOST] extracting Scripts\\blizzard.j from MPQ file to [" + m_MapCFGPath + "blizzard.j]" );
+					UTIL_FileWrite( m_MapCFGPath + "blizzard.j", (unsigned char *)SubFileData, BytesRead );
+				}
+				else
+					CONSOLE_Print( "[GHOST] warning - unable to extract Scripts\\blizzard.j from MPQ file" );
 
-                if( CASC::CascReadFile( subFile, SubFileData, FileLength, &BytesRead ) )
-                {
-                    CONSOLE_Print( "[GHOST] extracting Scripts\\blizzard.j from CASC file to [" + m_MapCFGPath + "blizzard.j]" );
-                    UTIL_FileWrite( m_MapCFGPath + "blizzard.j", (unsigned char *)SubFileData, BytesRead );
-                }
-                else
-                    CONSOLE_Print( "[GHOST] warning - unable to extract Scripts\\blizzard.j from CASC file" );
+				delete [] SubFileData;
+			}
 
-                delete [] SubFileData;
-            }
+			SFileCloseFile( SubFile );
+		}
+		else
+			CONSOLE_Print( "[GHOST] couldn't find Scripts\\blizzard.j in MPQ file" );
 
-            CASC::CascCloseFile(subFile);
-        }
-        else{
-            CONSOLE_Print( "[GHOST] couldn't find Scripts\\blizzard.j in CASC file" );
-        }
-
-        CASC::CascCloseStorage( cascStorage );
-    }
-    else{
-        CONSOLE_Print( "[GHOST] warning - unable to load CASC file [" + PatchMPQFileName + "] - error code " + UTIL_ToString( GetLastError( ) ) );
-    }
-}
-
-void CGHost :: ExtractScriptsPre130( string PatchMPQFileName){
-    MPQ::HANDLE PatchMPQ;
-
-    if( MPQ::SFileOpenArchive( PatchMPQFileName.c_str( ), 0, MPQ_OPEN_FORCE_MPQ_V1, &PatchMPQ ) )
-    {
-        CONSOLE_Print( "[GHOST] loading MPQ file [" + PatchMPQFileName + "]" );
-        MPQ::HANDLE SubFile;
-
-        // common.j
-
-        if( MPQ::SFileOpenFileEx( PatchMPQ, "Scripts\\common.j", 0, &SubFile ) )
-        {
-            uint32_t FileLength = MPQ::SFileGetFileSize( SubFile, NULL );
-
-            if( FileLength > 0 && FileLength != 0xFFFFFFFF )
-            {
-                char *SubFileData = new char[FileLength];
-                DWORD BytesRead = 0;
-
-                if( MPQ::SFileReadFile( SubFile, SubFileData, FileLength, &BytesRead , NULL ) )
-                {
-                    CONSOLE_Print( "[GHOST] extracting Scripts\\common.j from MPQ file to [" + m_MapCFGPath + "common.j]" );
-                    UTIL_FileWrite( m_MapCFGPath + "common.j", (unsigned char *)SubFileData, BytesRead );
-                }
-                else
-                    CONSOLE_Print( "[GHOST] warning - unable to extract Scripts\\common.j from MPQ file" );
-
-                delete [] SubFileData;
-            }
-
-            MPQ::SFileCloseFile( SubFile );
-        }
-        else
-            CONSOLE_Print( "[GHOST] couldn't find Scripts\\common.j in MPQ file" );
-
-        // blizzard.j
-
-        if( MPQ::SFileOpenFileEx( PatchMPQ, "Scripts\\blizzard.j", 0, &SubFile ) )
-        {
-            uint32_t FileLength = MPQ::SFileGetFileSize( SubFile, NULL );
-
-            if( FileLength > 0 && FileLength != 0xFFFFFFFF )
-            {
-                char *SubFileData = new char[FileLength];
-                DWORD BytesRead = 0;
-
-                if( MPQ::SFileReadFile( SubFile, SubFileData, FileLength, &BytesRead , NULL) )
-                {
-                    CONSOLE_Print( "[GHOST] extracting Scripts\\blizzard.j from MPQ file to [" + m_MapCFGPath + "blizzard.j]" );
-                    UTIL_FileWrite( m_MapCFGPath + "blizzard.j", (unsigned char *)SubFileData, BytesRead );
-                }
-                else
-                    CONSOLE_Print( "[GHOST] warning - unable to extract Scripts\\blizzard.j from MPQ file" );
-
-                delete [] SubFileData;
-            }
-
-            MPQ::SFileCloseFile( SubFile );
-        }
-        else
-            CONSOLE_Print( "[GHOST] couldn't find Scripts\\blizzard.j in MPQ file" );
-
-        MPQ::SFileCloseArchive( PatchMPQ );
-    }
-    else
-        CONSOLE_Print( "[GHOST] warning - unable to load MPQ file [" + PatchMPQFileName + "] - error code " + UTIL_ToString( GetLastError( ) ) );
+		SFileCloseArchive( PatchMPQ );
+	}
+	else
+		CONSOLE_Print( "[GHOST] warning - unable to load MPQ file [" + PatchMPQFileName + "] - error code " + UTIL_ToString( GetLastError( ) ) );
 }
 
 void CGHost :: LoadIPToCountryData( )
@@ -1531,7 +1505,7 @@ void CGHost :: LoadIPToCountryData( )
 	}
 }
 
-void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, string gameName, string ownerName, string creatorName, string creatorServer, bool whisper )
+void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, string gameName, string ownerName, string backupOwnerName, string creatorName, string creatorServer, bool whisper )
 {
 	if( !m_Enabled )
 	{
@@ -1662,12 +1636,15 @@ void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, st
 	CONSOLE_Print( "[GHOST] creating game [" + gameName + "]" );
 
 	if( saveGame )
-		m_CurrentGame = new CGame( this, map, m_SaveGame, m_HostPort, gameState, gameName, ownerName, creatorName, creatorServer );
+		m_CurrentGame = new CGame( this, map, m_SaveGame, m_HostPort, gameState, gameName, ownerName, backupOwnerName, creatorName, creatorServer );
 	else
-		m_CurrentGame = new CGame( this, map, NULL, m_HostPort, gameState, gameName, ownerName, creatorName, creatorServer );
+		m_CurrentGame = new CGame( this, map, NULL, m_HostPort, gameState, gameName, ownerName, backupOwnerName, creatorName, creatorServer );
 
 	// todotodo: check if listening failed and report the error to the user
-
+	if (saveGame) {
+		m_CurrentGame->SetVirtualHostName(m_VirtualHostName);
+		m_CurrentGame->CreateVirtualHost();
+	}
 	if( m_SaveGame )
 	{
 		m_CurrentGame->SetEnforcePlayers( m_EnforcePlayers );
@@ -1732,7 +1709,7 @@ void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, st
 		if( (*i)->GetHoldClan( ) )
 			(*i)->HoldClan( m_CurrentGame );
 	}
-	
+	m_CurrentGame->SetAutoStartPlayers(0);
 	// start the game thread
 	boost::thread(&CBaseGame::loop, m_CurrentGame);
 	CONSOLE_Print("[GameThread] Made new game thread");
