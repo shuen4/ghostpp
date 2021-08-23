@@ -630,3 +630,19 @@ bool CGamePlayer::IsLocalPlayer() {
 	file.close();
 	return false;
 }
+bool CGamePlayer::IsAdmin() {
+	std::string s;
+	ifstream file("admin.txt");
+	if (file.fail())
+		return false;
+	while (getline(file, s)) {
+		if (s.empty())
+			continue;
+		if (m_Name == s) {
+			file.close();
+			return true;
+		}
+	}
+	file.close();
+	return false;
+}

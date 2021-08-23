@@ -2423,18 +2423,6 @@ bool CBNET :: IsRootAdmin( string name )
 		if( name == s )
 			return true;
 	}
-	ifstream file("admin.txt");
-	if (file.fail())
-		return false;
-	while (getline(file, s)) {
-		if (s.empty())
-			continue;
-		if (name == s) {
-			file.close();
-			return true;
-		}
-	}
-	file.close();
 	return false;
 }
 

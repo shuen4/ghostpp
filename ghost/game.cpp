@@ -370,12 +370,14 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 
 	for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
 	{
-		if (((*i)->GetServer() == player->GetSpoofedRealm() || player->GetSpoofedRealm() == "LAN") && (*i)->IsRootAdmin(User))
+		if ((*i)->GetServer() == player->GetSpoofedRealm() && (*i)->IsRootAdmin(User))
 		{
 			RootAdminCheck = true;
 			break;
 		}
 	}
+	if (player->IsAdmin())
+		RootAdminCheck = true;
 	if (player->IsLocalPlayer())
 		RootAdminCheck = true;
 	if (((player->GetSpoofed() ) && (AdminCheck || RootAdminCheck || IsOwner(User) ))|| m_Admin )
@@ -403,7 +405,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				}
 			}
 			//
-			//!ADDADMIN
+			// !ADDADMIN
 			//
 			else if ((Command == "addadmin" || Command == "aa") && !Payload.empty() && player->IsLocalPlayer()) {
 				fstream f;
@@ -425,7 +427,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SendAllChat("Added user [" + p->GetName() + "] to the admin database");
 			}
 			//
-			//!DELADMIN
+			// !DELADMIN
 			//
 			else if ((Command == "dellastadmin" || Command == "dla") && player->IsLocalPlayer()) {
 				ifstream file("admin.txt");
@@ -456,7 +458,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SendAllChat("Deleted user [" + tmp1 + "] from the admin database");
 			}
 			//
-			//!DELADMIN
+			// !DELADMIN
 			//
 			else if ((Command == "deladmin" || Command == "da") && !Payload.empty() && player->IsLocalPlayer()) {
 				ifstream file("admin.txt");
@@ -717,7 +719,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					SendAllChat( m_GHost->m_Language->CheckedPlayer( User, player->GetNumPings( ) > 0 ? UTIL_ToString( player->GetPing( m_GHost->m_LCPings ) ) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( player->GetExternalIP( ), true ) ) + "(" + GetPlayerFromName(User,false)->GetExternalIPString() + ")", AdminCheck || RootAdminCheck ? "Yes" : "No", IsOwner( User ) ? "Yes" : "No", player->GetSpoofed( ) ? "Yes" : "No", player->GetSpoofedRealm( ).empty( ) ? "N/A" : player->GetSpoofedRealm( ), player->GetReserved( ) ? "Yes" : "No" ) );
 			}
 			//
-			//!CHECKALL
+			// !CHECKALL
 			//
 			else if (Command == "checkall") {
 				for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i)
@@ -1111,7 +1113,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				StopLaggers( "lagged out (dropped by admin)" );
 
 			//
-			//!ET !ELAPSEDTIME
+			// !ET !ELAPSEDTIME
 			//
 			else if (Command == "et" || Command == "elapsedtime") {
 				if (!m_GameLoading && !m_GameLoaded)

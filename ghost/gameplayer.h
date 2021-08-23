@@ -219,6 +219,7 @@ public:
 	virtual void Send( BYTEARRAY data );
 	virtual void EventGProxyReconnect( CTCPSocket *NewSocket, uint32_t LastPacket );
 	virtual bool IsLocalPlayer();
+	virtual bool IsAdmin();
 };
 
 #endif
