@@ -150,6 +150,8 @@ public:
 	uint32_t m_MapGameType;					// config value: the MapGameType overwrite (aka: refresh hack)
 	vector<GProxyReconnector *> m_PendingReconnects;
 	boost::mutex m_ReconnectMutex;
+	bool m_GameRanger;						// config value: GameRanger compatible mode
+	uint16_t m_GameRangerHostPort;			// config value: GameRanger compatible mode host port
 
 	CGHost( CConfig *CFG );
 	~CGHost( );

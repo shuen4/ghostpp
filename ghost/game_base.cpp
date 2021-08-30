@@ -52,6 +52,8 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 	m_SaveCounter = 0;
 	m_Admin = false;
 	m_Socket = new CTCPServer();
+	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+		m_Socket1 = new CTCPServer();
 	m_Protocol = new CGameProtocol(m_GHost);
 	m_Map = new CMap(*nMap);
 
@@ -149,11 +151,20 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 		CONSOLE_Print("[GAME: " + m_GameName + "] error listening on port " + UTIL_ToString(m_HostPort));
 		m_Exiting = true;
 	}
+	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+		if (m_Socket1->Listen(m_GHost->m_BindAddress, m_GHost->m_GameRangerHostPort))
+			CONSOLE_Print("[GAME: " + m_GameName + "] listening on port " + UTIL_ToString(m_GHost->m_GameRangerHostPort) + " for player outside GameRanger");
+		else
+		{
+			CONSOLE_Print("[GAME: " + m_GameName + "] error listening on port " + UTIL_ToString(m_GHost->m_GameRangerHostPort) + " for player outside GameRanger");
+			m_Exiting = true;
+		}
 }
 
 CBaseGame :: ~CBaseGame( )
 {
 	delete m_Socket;
+	delete m_Socket1;
 	delete m_Protocol;
 	delete m_Map;
 	delete m_Replay;
@@ -361,6 +372,12 @@ unsigned int CBaseGame :: SetFD( void *fd, void *send_fd, int *nfds )
 		m_Socket->SetFD( (fd_set *)fd, (fd_set *)send_fd, nfds );
 		++NumFDs;
 	}
+	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+		if (m_Socket1)
+		{
+			m_Socket1->SetFD((fd_set*)fd, (fd_set*)send_fd, nfds);
+			++NumFDs;
+		}
 
 	for( vector<CPotentialPlayer *> :: iterator i = m_Potentials.begin( ); i != m_Potentials.end( ); ++i )
 	{
@@ -1169,6 +1186,32 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 		if( m_Socket->HasError( ) )
 			return true;
 	}
+	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+		if (m_Socket1)
+		{
+			CTCPSocket* NewSocket = m_Socket1->WSAAccept((fd_set*)fd);
+
+			if (NewSocket)
+			{
+				// check the IP blacklist
+
+				if (m_IPBlackList.find(NewSocket->GetIPString()) == m_IPBlackList.end())
+				{
+					if (m_GHost->m_TCPNoDelay)
+						NewSocket->SetNoDelay(true);
+
+					m_Potentials.push_back(new CPotentialPlayer(m_Protocol, this, NewSocket));
+				}
+				else
+				{
+					CONSOLE_Print("[GAME: " + m_GameName + "] rejected connection from [" + NewSocket->GetIPString() + "] due to blacklist");
+					delete NewSocket;
+				}
+			}
+
+			if (m_Socket1->HasError())
+				return true;
+		}
 
 	return m_Exiting;
 }
@@ -2198,18 +2241,7 @@ void CBaseGame :: EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinP
 				Player->Send( m_Protocol->SEND_W3GS_PLAYERINFO( (*i)->GetPID( ), (*i)->GetName( ), (*i)->GetExternalIP( ), (*i)->GetInternalIP( ) ) );
 		}
 	}
-	/*if (Player->IsLocalPlayer() && !m_SaveGame)
-		if (m_Map->GetMapOptions() & MAPOPT_FIXEDPLAYERSETTINGS)
-			for (vector<CGameSlot> ::iterator i = m_Slots.begin(); i != m_Slots.end(); ++i)
-				if ((*i).GetColour() == 6) {
-					if ((*i).GetSlotStatus() == SLOTSTATUS_OPEN || ((*i).GetSlotStatus() == SLOTSTATUS_OCCUPIED && (*i).GetComputer() == 0 && (*i).GetPID() != m_FakePlayerPID && !GetPlayerFromPID((*i).GetPID())->IsLocalPlayer()))
-						SwapSlots(GetSIDFromPID(Player->GetPID()), 6);
-					else
-						SendChat(Player->GetPID(), "Green Slot not available");
-					break;
-				}
-				else if (i == m_Slots.end()-1)
-					SendChat(Player->GetPID(), "Green Slot not available");*/
+
 	// send a map check packet to the new player
 
 	Player->Send( m_Protocol->SEND_W3GS_MAPCHECK( m_Map->GetMapPath( ), m_Map->GetMapSize( ), m_Map->GetMapInfo( ), m_Map->GetMapCRC( ), m_Map->GetMapSHA1( ) ) );
@@ -2242,25 +2274,27 @@ void CBaseGame :: EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinP
 	}
 
 	// check for multiple IP usage
-
-	if( m_GHost->m_CheckMultipleIPUsage )
-	{
-		string Others;
-
-		for( vector<CGamePlayer *> :: iterator i = m_Players.begin( ); i != m_Players.end( ); ++i )
+	if (!Player->IsLocalPlayer())
+		if( m_GHost->m_CheckMultipleIPUsage )
 		{
-			if( Player != *i && Player->GetExternalIPString( ) == (*i)->GetExternalIPString( ) )
-			{
-				if( Others.empty( ) )
-					Others = (*i)->GetName( );
-				else
-					Others += ", " + (*i)->GetName( );
-			}
-		}
+			string Others;
 
-		if( !Others.empty( ) )
-			SendAllChat( m_GHost->m_Language->MultipleIPAddressUsageDetected( joinPlayer->GetName( ), Others ) );
-	}
+			for( vector<CGamePlayer *> :: iterator i = m_Players.begin( ); i != m_Players.end( ); ++i )
+			{
+				if ((*i)->IsLocalPlayer())
+					continue;
+				if( Player != *i && Player->GetExternalIPString( ) == (*i)->GetExternalIPString( ) )
+				{
+					if( Others.empty( ) )
+						Others = (*i)->GetName( );
+					else
+						Others += ", " + (*i)->GetName( );
+				}
+			}
+
+			if( !Others.empty( ) )
+				SendAllChat( m_GHost->m_Language->MultipleIPAddressUsageDetected( joinPlayer->GetName( ), Others ) );
+		}
 
 	// abort the countdown if there was one in progress
 
@@ -2690,24 +2724,27 @@ void CBaseGame::EventPlayerJoinedWithScore(CPotentialPlayer* potential, CIncomin
 
 	// check for multiple IP usage
 
-	if( m_GHost->m_CheckMultipleIPUsage )
-	{
-		string Others;
-
-		for( vector<CGamePlayer *> :: iterator i = m_Players.begin( ); i != m_Players.end( ); ++i )
+	if (!Player->IsLocalPlayer())
+		if( m_GHost->m_CheckMultipleIPUsage )
 		{
-			if( Player != *i && Player->GetExternalIPString( ) == (*i)->GetExternalIPString( ) )
-			{
-				if( Others.empty( ) )
-					Others = (*i)->GetName( );
-				else
-					Others += ", " + (*i)->GetName( );
-			}
-		}
+			string Others;
 
-		if( !Others.empty( ) )
-			SendAllChat( m_GHost->m_Language->MultipleIPAddressUsageDetected( joinPlayer->GetName( ), Others ) );
-	}
+			for( vector<CGamePlayer *> :: iterator i = m_Players.begin( ); i != m_Players.end( ); ++i )
+			{
+				if ((*i)->IsLocalPlayer())
+					continue;
+				if( Player != *i && Player->GetExternalIPString( ) == (*i)->GetExternalIPString( ) )
+				{
+					if (Others.empty())
+						Others = (*i)->GetName();
+					else
+						Others += ", " + (*i)->GetName();
+				}
+			}
+
+			if( !Others.empty( ) )
+				SendAllChat( m_GHost->m_Language->MultipleIPAddressUsageDetected( joinPlayer->GetName( ), Others ) );
+		}
 
 	// abort the countdown if there was one in progress
 
@@ -3545,6 +3582,8 @@ void CBaseGame :: EventGameStarted( )
 
 	delete m_Socket;
 	m_Socket = NULL;
+	delete m_Socket1;
+	m_Socket1 = NULL;
 
 	// delete any potential players that are still hanging around
 

@@ -224,7 +224,23 @@ void DEBUG_Print( BYTEARRAY b )
 
 	cout << "}" << endl;
 }
-
+bool ClearHook(PVOID func) {
+	if (((PBYTE)func)[0] == 0xE9) {
+		DWORD old = 0;
+		if (!VirtualProtect(func, 5, PAGE_EXECUTE_READWRITE, &old))
+			return false;
+		((PBYTE)func)[0] = 0x8B;
+		((PBYTE)func)[1] = 0xFF;
+		((PBYTE)func)[2] = 0x55;
+		((PBYTE)func)[3] = 0x8B;
+		((PBYTE)func)[4] = 0xEC;
+		DWORD old1 = 0;
+		if (!VirtualProtect(func, 5, old, &old1))
+			return false;
+		return true;
+	}
+	return false;
+}
 //
 // main
 //
@@ -251,6 +267,15 @@ int main(int argc, char** argv)
 	gLogFile = CFG.GetString( "bot_log", string( ) );
 	remove(gLogFile.c_str());
 	gLogMethod = CFG.GetInt( "bot_logmethod", 1 );
+	bool GameRanger = CFG.GetInt("bot_gameranger", 0) == 0 ? false : true;
+	if (GameRanger) {
+		CONSOLE_Print("[GHOST] GameRanger compatible mode.");
+		ClearHook(connect);
+		ClearHook(gethostbyname);
+		// if do this GameRanger player will have IP issue
+		// WSAAccept is not hooked so we can use it normaly
+		//ClearHook(accept);
+	}
 
 	if( !gLogFile.empty( ) )
 	{
@@ -402,6 +427,8 @@ int main(int argc, char** argv)
 
 CGHost :: CGHost( CConfig *CFG )
 {
+	m_GameRanger = CFG->GetInt("bot_gameranger", 0) == 0 ? false : true;
+	m_GameRangerHostPort = CFG->GetInt("bot_gamerangerhostport", 6115);
 	m_UDPSocket = new CUDPSocket( );
 	m_UDPSocket->SetBroadcastTarget( CFG->GetString( "udp_broadcasttarget", string( ) ) );
 	m_UDPSocket->SetDontRoute( CFG->GetInt( "udp_dontroute", 0 ) == 0 ? false : true );
@@ -973,7 +1000,11 @@ bool CGHost :: Update( long usecBlock )
 
 	if( m_Reconnect && m_ReconnectSocket )
 	{
-		CTCPSocket *NewSocket = m_ReconnectSocket->Accept( &fd );
+		CTCPSocket* NewSocket = NULL;
+		if (m_GameRanger)
+			NewSocket = m_ReconnectSocket->WSAAccept(&fd);
+		else // not sure if needed this so i kept it
+			NewSocket = m_ReconnectSocket->Accept(&fd);
 
 		if( NewSocket )
 			m_ReconnectSockets.push_back( NewSocket );

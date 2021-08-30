@@ -614,6 +614,8 @@ void CGamePlayer :: EventGProxyReconnect( CTCPSocket *NewSocket, uint32_t LastPa
 	m_Game->SendAllChat( m_Game->m_GHost->m_Language->PlayerReconnectedWithGProxy( m_Name ) );
 }
 bool CGamePlayer::IsLocalPlayer() {
+	if (m_JoinedRealm != "LAN")
+		return false;
 	string ip = GetExternalIPString();
 	string s;
 	ifstream file("localip.txt");

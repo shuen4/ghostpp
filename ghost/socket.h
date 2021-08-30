@@ -194,6 +194,7 @@ public:
 
 	virtual bool Listen( string address, uint16_t port );
 	virtual CTCPSocket *Accept( fd_set *fd );
+	virtual CTCPSocket* WSAAccept(fd_set* fd);
 };
 
 //

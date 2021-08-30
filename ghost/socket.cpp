@@ -555,6 +555,37 @@ CTCPSocket *CTCPServer :: Accept( fd_set *fd )
 
 	return NULL;
 }
+CTCPSocket* CTCPServer::WSAAccept(fd_set* fd)
+{
+	if (m_Socket == INVALID_SOCKET || m_HasError)
+		return NULL;
+
+	if (FD_ISSET(m_Socket, fd))
+	{
+		// a connection is waiting, accept it
+
+		struct sockaddr_in Addr;
+		int AddrLen = sizeof(Addr);
+		SOCKET NewSocket;
+
+#ifdef WIN32
+		if ((NewSocket = ::WSAAccept(m_Socket, (struct sockaddr*)&Addr, &AddrLen, NULL, NULL)) == INVALID_SOCKET)
+#else
+		if ((NewSocket = accept(m_Socket, (struct sockaddr*)&Addr, (socklen_t*)&AddrLen)) == INVALID_SOCKET)
+#endif
+		{
+			// accept error, ignore it
+		}
+		else
+		{
+			// success! return the new socket
+
+			return new CTCPSocket(NewSocket, Addr);
+		}
+	}
+
+	return NULL;
+}
 
 //
 // CUDPSocket

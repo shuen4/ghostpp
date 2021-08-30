@@ -48,6 +48,7 @@ public:
 
 protected:
 	CTCPServer *m_Socket;							// listening socket
+	CTCPServer* m_Socket1;							// listening socket (for player outside GameRanger)
 	CGameProtocol *m_Protocol;						// game protocol
 	vector<CPotentialPlayer *> m_Potentials;		// vector of potential players (connections that haven't sent a W3GS_REQJOIN packet yet)
 	vector<CGamePlayer *> m_Players;				// vector of players
