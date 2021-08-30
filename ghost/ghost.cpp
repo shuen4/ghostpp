@@ -1347,6 +1347,9 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	m_VirtualHostName = CFG->GetString( "bot_virtualhostname", "|cFF4080C0GHost" );
 	m_FakePlayerName = CFG->GetString("bot_fakeplayername", m_VirtualHostName);
 	m_HideIPAddresses = CFG->GetInt( "bot_hideipaddresses", 0 ) == 0 ? false : true;
+	if (m_GameRanger)
+		// chat problem if no hide ip
+		m_HideIPAddresses = true;
 	m_CheckMultipleIPUsage = CFG->GetInt( "bot_checkmultipleipusage", 1 ) == 0 ? false : true;
 
 	if( m_VirtualHostName.size( ) > 15 )

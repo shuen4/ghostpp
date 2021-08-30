@@ -2724,27 +2724,18 @@ void CBaseGame::EventPlayerJoinedWithScore(CPotentialPlayer* potential, CIncomin
 
 	// check for multiple IP usage
 
-	if (!Player->IsLocalPlayer())
-		if( m_GHost->m_CheckMultipleIPUsage )
-		{
-			string Others;
-
-			for( vector<CGamePlayer *> :: iterator i = m_Players.begin( ); i != m_Players.end( ); ++i )
-			{
-				if ((*i)->IsLocalPlayer())
-					continue;
-				if( Player != *i && Player->GetExternalIPString( ) == (*i)->GetExternalIPString( ) )
-				{
-					if (Others.empty())
-						Others = (*i)->GetName();
-					else
-						Others += ", " + (*i)->GetName();
-				}
-			}
-
-			if( !Others.empty( ) )
-				SendAllChat( m_GHost->m_Language->MultipleIPAddressUsageDetected( joinPlayer->GetName( ), Others ) );
-		}
+	if (m_GHost->m_CheckMultipleIPUsage)
+	{
+		string Others;
+		for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i)
+			if (Player != *i && Player->GetExternalIPString() == (*i)->GetExternalIPString())
+				if (Others.empty())
+					Others = (*i)->GetName();
+				else
+					Others += ", " + (*i)->GetName();
+		if (!Others.empty())
+			SendAllChat(m_GHost->m_Language->MultipleIPAddressUsageDetected(joinPlayer->GetName(), Others));
+	}
 
 	// abort the countdown if there was one in progress
 
