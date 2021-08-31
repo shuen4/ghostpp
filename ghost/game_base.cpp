@@ -151,14 +151,16 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 		CONSOLE_Print("[GAME: " + m_GameName + "] error listening on port " + UTIL_ToString(m_HostPort));
 		m_Exiting = true;
 	}
+
 	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
 		if (m_Socket1->Listen(m_GHost->m_BindAddress, m_GHost->m_GameRangerHostPort))
-			CONSOLE_Print("[GAME: " + m_GameName + "] listening on port " + UTIL_ToString(m_GHost->m_GameRangerHostPort) + " for player outside GameRanger");
+			CONSOLE_Print("[GAME: " + m_GameName + "] listening on port " + UTIL_ToString(m_GHost->m_GameRangerHostPort) + " for GameRanger player");
 		else
 		{
-			CONSOLE_Print("[GAME: " + m_GameName + "] error listening on port " + UTIL_ToString(m_GHost->m_GameRangerHostPort) + " for player outside GameRanger");
+			CONSOLE_Print("[GAME: " + m_GameName + "] error listening on port " + UTIL_ToString(m_GHost->m_GameRangerHostPort) + " for GameRanger player");
 			m_Exiting = true;
 		}
+	
 }
 
 CBaseGame :: ~CBaseGame( )
@@ -535,10 +537,10 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 					MapHeight.push_back(0);
 				}
 				if (m_GHost->m_AdminGamePort != m_HostPort) {
-					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
-					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 				}
-				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
+				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 			}
 			else
 			{
@@ -561,10 +563,10 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 					MapHeight.push_back(0);
 				}
 				if (m_GHost->m_AdminGamePort != m_HostPort) {
-					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
-					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 				}
-				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
+				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 			}
 		}
 	}
@@ -1163,7 +1165,7 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 
 	if( m_Socket )
 	{
-		CTCPSocket *NewSocket = m_Socket->Accept( (fd_set *)fd );
+		CTCPSocket *NewSocket = m_Socket->WSAAccept( (fd_set *)fd );
 
 		if( NewSocket )
 		{
@@ -1189,7 +1191,7 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
 		if (m_Socket1)
 		{
-			CTCPSocket* NewSocket = m_Socket1->WSAAccept((fd_set*)fd);
+			CTCPSocket* NewSocket = m_Socket1->Accept((fd_set*)fd);
 
 			if (NewSocket)
 			{
@@ -2155,6 +2157,8 @@ void CBaseGame :: EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinP
 		JoinedRealm = "LAN";
 
 	CONSOLE_Print( "[GAME: " + m_GameName + "] player [" + name + "|" + potential->GetExternalIPString( ) + "] joined the game" );
+	if (JoinedRealm != "LAN")
+		SendAllChat(GetHostPID(), "Player [" + name + "] is joining from server: " + JoinedRealm, false);
 	CGamePlayer *Player = new CGamePlayer( potential, m_SaveGame ? EnforcePID : GetNewPID( ), JoinedRealm, name, joinPlayer->GetInternalIP( ), Reserved );
 	// consider LAN players to have already spoof checked since they can't
 	// since so many people have trouble with this feature we now use the JoinedRealm to determine LAN status
@@ -2600,6 +2604,8 @@ void CBaseGame::EventPlayerJoinedWithScore(CPotentialPlayer* potential, CIncomin
 		JoinedRealm = "LAN";
 
 	CONSOLE_Print("[GAME: " + m_GameName + "] player [" + name + "|" + potential->GetExternalIPString() + "] joined the game");
+	if (JoinedRealm != "LAN")
+		SendAllChat(GetHostPID(), "Player [" + name + "] is joining from server: " + JoinedRealm, false);
 	CGamePlayer* Player = new CGamePlayer(potential, GetNewPID(), JoinedRealm, name, joinPlayer->GetInternalIP(), false);
 
 	// consider LAN players to have already spoof checked since they can't

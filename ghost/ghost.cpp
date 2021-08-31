@@ -267,12 +267,12 @@ int main(int argc, char** argv)
 	gLogFile = CFG.GetString( "bot_log", string( ) );
 	remove(gLogFile.c_str());
 	gLogMethod = CFG.GetInt( "bot_logmethod", 1 );
-	bool GameRanger = CFG.GetInt("bot_gameranger", 0) == 0 ? false : true;
+	bool GameRanger = CFG.GetInt("gameranger", 0) == 0 ? false : true;
 	if (GameRanger) {
 		CONSOLE_Print("[GHOST] GameRanger compatible mode.");
 		ClearHook(connect);
 		ClearHook(gethostbyname);
-		// if do this GameRanger player will have IP issue
+		// if do this GameRanger player will have IP check issue
 		// WSAAccept is not hooked so we can use it normaly
 		//ClearHook(accept);
 	}
@@ -427,8 +427,8 @@ int main(int argc, char** argv)
 
 CGHost :: CGHost( CConfig *CFG )
 {
-	m_GameRanger = CFG->GetInt("bot_gameranger", 0) == 0 ? false : true;
-	m_GameRangerHostPort = CFG->GetInt("bot_gamerangerhostport", 6115);
+	m_GameRanger = CFG->GetInt("gameranger", 0) == 0 ? false : true;
+	m_GameRangerHostPort = CFG->GetInt("gameranger_hostport", 6115);
 	m_UDPSocket = new CUDPSocket( );
 	m_UDPSocket->SetBroadcastTarget( CFG->GetString( "udp_broadcasttarget", string( ) ) );
 	m_UDPSocket->SetDontRoute( CFG->GetInt( "udp_dontroute", 0 ) == 0 ? false : true );
@@ -573,8 +573,8 @@ CGHost :: CGHost( CConfig *CFG )
 		string ServerAlias = CFG->GetString( Prefix + "serveralias", string( ) );
 		string BackupIP = CFG->GetString(Prefix + "backupip", string());
 		string BackupPort = CFG->GetString(Prefix + "backupport", "6112");
-		string CDKeyROC = CFG->GetString( Prefix + "cdkeyroc", string( ) );
-		string CDKeyTFT = CFG->GetString( Prefix + "cdkeytft", string( ) );
+		string CDKeyROC = CFG->GetString( Prefix + "cdkeyroc", "FFFFFFFFFFFFFFFFFFFFFFFFFF" );
+		string CDKeyTFT = CFG->GetString( Prefix + "cdkeytft", "FFFFFFFFFFFFFFFFFFFFFFFFFF" );
 		string CountryAbbrev = CFG->GetString( Prefix + "countryabbrev", "USA" );
 		string Country = CFG->GetString( Prefix + "country", "United States" );
 		string Locale = CFG->GetString( Prefix + "locale", "system" );

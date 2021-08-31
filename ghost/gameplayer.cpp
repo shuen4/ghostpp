@@ -524,7 +524,7 @@ void CGamePlayer :: ProcessPackets( )
 					m_GProxy = true;
 					m_Socket->PutBytes( m_Game->m_GHost->m_GPSProtocol->SEND_GPSS_INIT( m_Game->m_GHost->m_ReconnectPort, m_PID, m_GProxyReconnectKey, m_Game->GetGProxyEmptyActions( ) ) );
 					CONSOLE_Print( "[GAME: " + m_Game->GetGameName( ) + "] player [" + m_Name + "] is using GProxy++" );
-					m_Game->SendAllChat("Player [" + m_Name + "] is connected using GProxy++ from server: " + m_JoinedRealm);
+					m_Game->SendAllChat("Player [" + m_Name + "] is using GProxy++");
 				}
 				else
 				{
@@ -614,8 +614,6 @@ void CGamePlayer :: EventGProxyReconnect( CTCPSocket *NewSocket, uint32_t LastPa
 	m_Game->SendAllChat( m_Game->m_GHost->m_Language->PlayerReconnectedWithGProxy( m_Name ) );
 }
 bool CGamePlayer::IsLocalPlayer() {
-	if (m_JoinedRealm != "LAN")
-		return false;
 	string ip = GetExternalIPString();
 	string s;
 	ifstream file("localip.txt");
