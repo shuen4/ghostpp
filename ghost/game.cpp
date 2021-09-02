@@ -1770,10 +1770,14 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			else if (Command == "setspoofchecked" || Command == "ssc") {
 				CGamePlayer* Target = NULL;
 				uint32_t Count = 1;
-				if (Payload.empty()) {
-					Target = GetPlayerFromName(Payload, true);
+				string Name;
+				stringstream SS;
+				SS << Payload;
+				SS >> Name;
+				if (SS.eof()) {
+					Target = GetPlayerFromName(Name, true);
 					if (Target == NULL)
-						Count = GetPlayerFromNamePartial(Payload, &Target);
+						Count = GetPlayerFromNamePartial(Name, &Target);
 					if (Target == NULL)
 						SendAllChat("No matches found");
 					else if (Count > 1)
@@ -1784,9 +1788,9 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					}
 				}
 				else {
-					Target = GetPlayerFromName(Payload, true);
+					Target = GetPlayerFromName(Name, true);
 					if (Target == NULL)
-						Count = GetPlayerFromNamePartial(Payload, &Target);
+						Count = GetPlayerFromNamePartial(Name, &Target);
 					if (Target == NULL)
 						SendAllChat("No matches found");
 					else if (Count > 1)
