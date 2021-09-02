@@ -1767,7 +1767,36 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						SendAllChat( m_GHost->m_Language->CountDownAbortedSomeoneLeftRecently( ) );
 				}
 			}
-
+			else if (Command == "setspoofchecked" || Command == "ssc") {
+				CGamePlayer* Target = NULL;
+				uint32_t Count = 1;
+				if (Payload.empty()) {
+					Target = GetPlayerFromName(Payload, true);
+					if (Target == NULL)
+						Count = GetPlayerFromNamePartial(Payload, &Target);
+					if (Target == NULL)
+						SendAllChat("No matches found");
+					else if (Count > 1)
+						SendAllChat("Found more than one match");
+					else {
+						Target->SetSpoofed(true);
+						SendAllChat("sc status changed to: true");
+					}
+				}
+				else {
+					Target = GetPlayerFromName(Payload, true);
+					if (Target == NULL)
+						Count = GetPlayerFromNamePartial(Payload, &Target);
+					if (Target == NULL)
+						SendAllChat("No matches found");
+					else if (Count > 1)
+						SendAllChat("Found more than one match");
+					else {
+						Target->SetSpoofed(false);
+						SendAllChat("sc status changed to: false");
+					}
+				}
+			}
 			//
 			// !SETCOLOR
 			//
