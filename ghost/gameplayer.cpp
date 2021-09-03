@@ -631,6 +631,8 @@ bool CGamePlayer::IsLocalPlayer() {
 	return false;
 }
 bool CGamePlayer::IsAdmin() {
+	string name = m_Name;
+	transform(name.begin(), name.end(), name.begin(), (int(*)(int))tolower);
 	std::string s;
 	ifstream file("admin.txt");
 	if (file.fail())
@@ -638,7 +640,7 @@ bool CGamePlayer::IsAdmin() {
 	while (getline(file, s)) {
 		if (s.empty())
 			continue;
-		if (m_Name == s) {
+		if (name == s) {
 			file.close();
 			return true;
 		}

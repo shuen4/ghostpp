@@ -166,7 +166,8 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 CBaseGame :: ~CBaseGame( )
 {
 	delete m_Socket;
-	delete m_Socket1;
+	if (!m_IsAdminGame)
+		delete m_Socket1;
 	delete m_Protocol;
 	delete m_Map;
 	delete m_Replay;
