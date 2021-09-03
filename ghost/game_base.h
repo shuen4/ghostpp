@@ -138,6 +138,8 @@ protected:
 	int m_SaveCounter;								// number of save before player disconnect
 	int m_RelayMessage;								// relay player chat message 0 = disable ,1 = enable ,2 = enable (debug)
 	bool m_DebugChat;								// show chat ToPIDs in console
+	bool m_Saved;
+	bool m_IsAdminGame;
 
 public:
 	vector<CGameSlot> m_Slots;						// vector of slots
@@ -147,7 +149,7 @@ public:
 	boost::mutex m_SpoofAddMutex;
 
 public:
-	CBaseGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer );
+	CBaseGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer, bool nIsAdminGame );
 	virtual ~CBaseGame( );
 
 	virtual void loop( );

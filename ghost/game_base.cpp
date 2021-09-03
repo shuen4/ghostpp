@@ -43,7 +43,7 @@
 // CBaseGame
 //
 
-CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer) : m_GHost(nGHost), m_SaveGame(nSaveGame), m_Replay(NULL), m_Exiting(false), m_Saving(false), m_HostPort(nHostPort), m_GameState(nGameState), m_VirtualHostPID(255), m_FakePlayerPID(255), m_GProxyEmptyActions(0), m_GameName(nGameName), m_LastGameName(nGameName), m_VirtualHostName(m_GHost->m_VirtualHostName), m_OwnerName(nOwnerName), m_CreatorName(nCreatorName), m_CreatorServer(nCreatorServer), m_HCLCommandString(nMap->GetMapDefaultHCL()), m_RandomSeed(GetTicks()), m_HostCounter(m_GHost->m_HostCounter++), m_EntryKey(rand()), m_Latency(m_GHost->m_Latency), m_SyncLimit(m_GHost->m_SyncLimit), m_SyncCounter(0), m_GameTicks(0), m_CreationTime(GetTime()), m_LastPingTime(GetTime()), m_LastRefreshTime(GetTime()), m_LastDownloadTicks(GetTime()), m_DownloadCounter(0), m_LastDownloadCounterResetTicks(GetTime()), m_LastAnnounceTime(0), m_AnnounceInterval(0), m_LastAutoStartTime(GetTime()), m_AutoStartPlayers(0), m_LastCountDownTicks(0), m_CountDownCounter(0), m_StartedLoadingTicks(0), m_StartPlayers(0), m_LastLagScreenResetTime(0), m_LastActionSentTicks(0), m_LastActionLateBy(0), m_StartedLaggingTime(0), m_LastLagScreenTime(0), m_LastReservedSeen(GetTime()), m_StartedKickVoteTime(0), m_GameOverTime(0), m_LastPlayerLeaveTicks(0), m_MinimumScore(0.), m_MaximumScore(0.), m_SlotInfoChanged(false), m_Locked(false), m_RefreshMessages(m_GHost->m_RefreshMessages), m_RefreshError(false), m_RefreshRehosted(false), m_MuteAll(false), m_MuteLobby(false), m_CountDownStarted(false), m_GameLoading(false), m_GameLoaded(false), m_LoadInGame(nMap->GetMapLoadInGame()), m_Lagging(false), m_AutoSave(m_GHost->m_AutoSave), m_MatchMaking(false), m_LocalAdminMessages(m_GHost->m_LocalAdminMessages), m_DoDelete(0), m_LastReconnectHandleTime(0), m_FakePlayerReplacedSlotData(nMap->GetSlots()[0]), m_FakePlayerReplacedSlot(false)
+CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer, bool nIsAdminGame) : m_GHost(nGHost), m_SaveGame(nSaveGame), m_Replay(NULL), m_Exiting(false), m_Saving(false), m_HostPort(nHostPort), m_GameState(nGameState), m_VirtualHostPID(255), m_FakePlayerPID(255), m_GProxyEmptyActions(0), m_GameName(nGameName), m_LastGameName(nGameName), m_VirtualHostName(m_GHost->m_VirtualHostName), m_OwnerName(nOwnerName), m_CreatorName(nCreatorName), m_CreatorServer(nCreatorServer), m_HCLCommandString(nMap->GetMapDefaultHCL()), m_RandomSeed(GetTicks()), m_HostCounter(m_GHost->m_HostCounter++), m_EntryKey(rand()), m_Latency(m_GHost->m_Latency), m_SyncLimit(m_GHost->m_SyncLimit), m_SyncCounter(0), m_GameTicks(0), m_CreationTime(GetTime()), m_LastPingTime(GetTime()), m_LastRefreshTime(GetTime()), m_LastDownloadTicks(GetTime()), m_DownloadCounter(0), m_LastDownloadCounterResetTicks(GetTime()), m_LastAnnounceTime(0), m_AnnounceInterval(0), m_LastAutoStartTime(GetTime()), m_AutoStartPlayers(0), m_LastCountDownTicks(0), m_CountDownCounter(0), m_StartedLoadingTicks(0), m_StartPlayers(0), m_LastLagScreenResetTime(0), m_LastActionSentTicks(0), m_LastActionLateBy(0), m_StartedLaggingTime(0), m_LastLagScreenTime(0), m_LastReservedSeen(GetTime()), m_StartedKickVoteTime(0), m_GameOverTime(0), m_LastPlayerLeaveTicks(0), m_MinimumScore(0.), m_MaximumScore(0.), m_SlotInfoChanged(false), m_Locked(false), m_RefreshMessages(m_GHost->m_RefreshMessages), m_RefreshError(false), m_RefreshRehosted(false), m_MuteAll(false), m_MuteLobby(false), m_CountDownStarted(false), m_GameLoading(false), m_GameLoaded(false), m_LoadInGame(nMap->GetMapLoadInGame()), m_Lagging(false), m_AutoSave(m_GHost->m_AutoSave), m_MatchMaking(false), m_LocalAdminMessages(m_GHost->m_LocalAdminMessages), m_DoDelete(0), m_LastReconnectHandleTime(0), m_FakePlayerReplacedSlotData(nMap->GetSlots()[0]), m_FakePlayerReplacedSlot(false), m_IsAdminGame(nIsAdminGame)
 {
 	m_MainOwnerName = nOwnerName;
 	m_BackupOwnerName = nBackupOwnerName;
@@ -52,7 +52,7 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 	m_SaveCounter = 0;
 	m_Admin = false;
 	m_Socket = new CTCPServer();
-	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+	if (m_GHost->m_GameRanger && !m_IsAdminGame)
 		m_Socket1 = new CTCPServer();
 	m_Protocol = new CGameProtocol(m_GHost);
 	m_Map = new CMap(*nMap);
@@ -152,7 +152,7 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 		m_Exiting = true;
 	}
 
-	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+	if (m_GHost->m_GameRanger && !m_IsAdminGame)
 		if (m_Socket1->Listen(m_GHost->m_BindAddress, m_GHost->m_GameRangerHostPort))
 			CONSOLE_Print("[GAME: " + m_GameName + "] listening on port " + UTIL_ToString(m_GHost->m_GameRangerHostPort) + " for GameRanger player");
 		else
@@ -270,7 +270,9 @@ void CBaseGame :: loop( )
 			SecString.insert( 0, "0" );
 
 		m_Replay->BuildReplay( m_GameName, m_StatString, m_GHost->m_ReplayWar3Version, m_GHost->m_ReplayBuildNumber );
-		m_Replay->Save( m_GHost->m_TFT, m_GHost->m_ReplayPath + UTIL_FileSafeName( "GHost++ " + string( Time ) + " " + m_GameName + " (" + MinString + "m" + SecString + "s).w3g" ) );
+		m_Replay->Save( m_GHost->m_TFT, m_GHost->m_ReplayPath + UTIL_FileSafeName("GHost++ " + string(Time) + " " + m_GameName + " (" + MinString + "m" + SecString + "s).w3g") );
+		if (m_Saved)
+			m_Replay->Save(m_GHost->m_TFT, m_GHost->m_ReplayPath + "a.w3g");
 	}
 
 	if(m_DoDelete == 1)
@@ -374,7 +376,7 @@ unsigned int CBaseGame :: SetFD( void *fd, void *send_fd, int *nfds )
 		m_Socket->SetFD( (fd_set *)fd, (fd_set *)send_fd, nfds );
 		++NumFDs;
 	}
-	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+	if (m_GHost->m_GameRanger && !m_IsAdminGame)
 		if (m_Socket1)
 		{
 			m_Socket1->SetFD((fd_set*)fd, (fd_set*)send_fd, nfds);
@@ -536,11 +538,11 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 					MapHeight.push_back(0);
 					MapHeight.push_back(0);
 				}
-				if (m_GHost->m_AdminGamePort != m_HostPort) {
-					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
-					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+				if (!m_IsAdminGame) {
+					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 				}
-				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 			}
 			else
 			{
@@ -562,11 +564,11 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 					MapHeight.push_back(0);
 					MapHeight.push_back(0);
 				}
-				if (m_GHost->m_AdminGamePort != m_HostPort) {
-					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
-					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+				if (!m_IsAdminGame) {
+					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 				}
-				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 			}
 		}
 	}
@@ -1188,7 +1190,7 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 		if( m_Socket->HasError( ) )
 			return true;
 	}
-	if (m_GHost->m_GameRanger && m_HostPort != m_GHost->m_AdminGamePort)
+	if (m_GHost->m_GameRanger && !m_IsAdminGame)
 		if (m_Socket1)
 		{
 			CTCPSocket* NewSocket = m_Socket1->Accept((fd_set*)fd);
@@ -1651,6 +1653,7 @@ void CBaseGame :: EventPlayerDeleted( CGamePlayer *player )
 
 	if( m_GameLoaded && player->GetLeftCode( ) == PLAYERLEAVE_DISCONNECT && m_AutoSave )
 	{
+		m_Saved = true;
 		m_SaveCounter++;
 		string SaveGameName = UTIL_FileSafeName("GHost++ AutoSave " + UTIL_ToString(m_SaveCounter) + ".w3z");
 		CONSOLE_Print( "[GAME: " + m_GameName + "] auto saving [" + SaveGameName + "] before player drop, shortened send interval = " + UTIL_ToString( GetTicks( ) - m_LastActionSentTicks ) );
@@ -2318,7 +2321,7 @@ void CBaseGame :: EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinP
 
 	Player->SetSpoofedRealm( JoinedRealm );
 	if (m_MainOwnerName != m_BackupOwnerName)
-		if (m_HostPort != m_GHost->m_AdminGamePort)
+		if (!m_IsAdminGame)
 			if (Player->GetName() == m_BackupOwnerName)
 				if (m_OwnerName == m_MainOwnerName && !GetPlayerFromName(m_MainOwnerName, true)) {
 					SendAllChat(m_GHost->m_Language->SettingGameOwnerTo(m_BackupOwnerName));
@@ -2771,6 +2774,7 @@ void CBaseGame :: EventPlayerLeft( CGamePlayer *player, uint32_t reason )
 {
 	if( m_GameLoaded && player->GetLeftCode( ) == PLAYERLEAVE_GPROXY && m_AutoSave )
 	{
+		m_Saved = true;
 		m_SaveCounter++;
 		string SaveGameName = UTIL_FileSafeName("GHost++ AutoSave " + UTIL_ToString(m_SaveCounter) + ".w3z");
 		CONSOLE_Print( "[GAME: " + m_GameName + "] auto saving [" + SaveGameName + "] before player drop, shortened send interval = " + UTIL_ToString( GetTicks( ) - m_LastActionSentTicks ) );
@@ -2875,6 +2879,7 @@ bool CBaseGame :: EventPlayerAction( CGamePlayer *player, CIncomingAction *actio
 
 	if( !action->GetAction( )->empty( ) && (*action->GetAction( ))[0] == 6 )
 	{
+		m_Saved = true;
 		CONSOLE_Print( "[GAME: " + m_GameName + "] player [" + player->GetName( ) + "] is saving the game" );
 		SendAllChat( m_GHost->m_Language->PlayerIsSavingTheGame( player->GetName( ) ) );
 	}
@@ -4388,7 +4393,7 @@ vector<unsigned char> CBaseGame :: BalanceSlotsRecursive( vector<unsigned char> 
 
 				vector<unsigned char> :: iterator CurrentPID = TestOrdering.begin( );
 				
-				/*double TeamScores[MAX_SLOTS];
+				double* TeamScores = new double[MAX_SLOTS];
 				for( unsigned char j = StartTeam; j < MAX_SLOTS; ++j )
 				{
 					TeamScores[j] = 0.0;
@@ -4427,10 +4432,12 @@ vector<unsigned char> CBaseGame :: BalanceSlotsRecursive( vector<unsigned char> 
 				{
 					BestOrdering = TestOrdering;
 					BestDifference = LargestDifference;
-				}*/
+				}
+				delete TeamScores;
 				
-				if (MAX_SLOTS == 12) {
-					double TeamScores[12]; for (unsigned char j = StartTeam; j < MAX_SLOTS; ++j)
+				/*if (MAX_SLOTS == 12) {
+					double TeamScores[12];
+					for (unsigned char j = StartTeam; j < MAX_SLOTS; ++j)
 					{
 						TeamScores[j] = 0.0;
 
@@ -4511,7 +4518,7 @@ vector<unsigned char> CBaseGame :: BalanceSlotsRecursive( vector<unsigned char> 
 						BestOrdering = TestOrdering;
 						BestDifference = LargestDifference;
 					}
-				}
+				}*/
 			}
 		}
 	}
@@ -4521,177 +4528,17 @@ vector<unsigned char> CBaseGame :: BalanceSlotsRecursive( vector<unsigned char> 
 
 void CBaseGame::BalanceSlots()
 {
-	if (MAX_SLOTS == 12) {
-		if (!(m_Map->GetMapOptions() & MAPOPT_FIXEDPLAYERSETTINGS))
-		{
-			CONSOLE_Print("[GAME: " + m_GameName + "] error balancing slots - can't balance slots without fixed player settings");
-			return;
-		}
-
-		// setup the necessary variables for the balancing algorithm
-		// use an array of 13 elements for MAX_SLOTS players because GHost++ allocates PID's from 1-MAX_SLOTS (i.e. excluding 0) and we use the PID to index the array
-
-		vector<unsigned char> PlayerIDs;
-		unsigned char TeamSizes[12];
-		double PlayerScores[13];
-		memset(TeamSizes, 0, sizeof(unsigned char) * MAX_SLOTS);
-
-		for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i)
-		{
-			unsigned char PID = (*i)->GetPID();
-
-			if (PID < 13)
-			{
-				unsigned char SID = GetSIDFromPID(PID);
-
-				if (SID < m_Slots.size())
-				{
-					unsigned char Team = m_Slots[SID].GetTeam();
-
-					if (Team < MAX_SLOTS)
-					{
-						// we are forced to use a default score because there's no way to balance the teams otherwise
-
-						double Score = (*i)->GetScore();
-
-						if (Score < -99999.0)
-							Score = m_Map->GetMapDefaultPlayerScore();
-
-						PlayerIDs.push_back(PID);
-						TeamSizes[Team]++;
-						PlayerScores[PID] = Score;
-					}
-				}
-			}
-		}
-
-		sort(PlayerIDs.begin(), PlayerIDs.end());
-
-		// balancing the teams is a variation of the bin packing problem which is NP
-		// we can have up to MAX_SLOTS players and/or teams so the scope of the problem is sometimes small enough to process quickly
-		// let's try to figure out roughly how much work this is going to take
-		// examples:
-		//  2 teams of 4 =     70 ~    5ms *** ok
-		//  2 teams of 5 =    252 ~    5ms *** ok
-		//  2 teams of 6 =    924 ~   20ms *** ok
-		//  3 teams of 2 =     90 ~    5ms *** ok
-		//  3 teams of 3 =   1680 ~   25ms *** ok
-		//  3 teams of 4 =  34650 ~  250ms *** will cause a lag spike
-		//  4 teams of 2 =   2520 ~   30ms *** ok
-		//  4 teams of 3 = 369600 ~ 3500ms *** unacceptable
-
-		uint32_t AlgorithmCost = 0;
-		uint32_t PlayersLeft = PlayerIDs.size();
-
-		for (unsigned char i = 0; i < MAX_SLOTS; ++i)
-		{
-			if (TeamSizes[i] > 0)
-			{
-				if (AlgorithmCost == 0)
-					AlgorithmCost = nCr(PlayersLeft, TeamSizes[i]);
-				else
-					AlgorithmCost *= nCr(PlayersLeft, TeamSizes[i]);
-
-				PlayersLeft -= TeamSizes[i];
-			}
-		}
-
-		if (AlgorithmCost > 40000)
-		{
-			// the cost is too high, don't run the algorithm
-			// a possible alternative: stop after enough iterations and/or time has passed
-
-			CONSOLE_Print("[GAME: " + m_GameName + "] shuffling slots instead of balancing - the algorithm is too slow (with a cost of " + UTIL_ToString(AlgorithmCost) + ") for this team configuration");
-			SendAllChat(m_GHost->m_Language->ShufflingPlayers());
-			ShuffleSlots();
-			return;
-		}
-
-		uint32_t StartTicks = GetTicks();
-		vector<unsigned char> BestOrdering = BalanceSlotsRecursive(PlayerIDs, TeamSizes, PlayerScores, 0);
-		uint32_t EndTicks = GetTicks();
-
-		// the BestOrdering assumes the teams are in slot order although this may not be the case
-		// so put the players on the correct teams regardless of slot order
-
-		vector<unsigned char> ::iterator CurrentPID = BestOrdering.begin();
-
-		for (unsigned char i = 0; i < MAX_SLOTS; ++i)
-		{
-			unsigned char CurrentSlot = 0;
-
-			for (unsigned char j = 0; j < TeamSizes[i]; ++j)
-			{
-				while (CurrentSlot < m_Slots.size() && m_Slots[CurrentSlot].GetTeam() != i)
-					++CurrentSlot;
-
-				// put the CurrentPID player on team i by swapping them into CurrentSlot
-
-				unsigned char SID1 = CurrentSlot;
-				unsigned char SID2 = GetSIDFromPID(*CurrentPID);
-
-				if (SID1 < m_Slots.size() && SID2 < m_Slots.size())
-				{
-					CGameSlot Slot1 = m_Slots[SID1];
-					CGameSlot Slot2 = m_Slots[SID2];
-					m_Slots[SID1] = CGameSlot(Slot2.GetPID(), Slot2.GetDownloadStatus(), Slot2.GetSlotStatus(), Slot2.GetComputer(), Slot1.GetTeam(), Slot1.GetColour(), Slot1.GetRace());
-					m_Slots[SID2] = CGameSlot(Slot1.GetPID(), Slot1.GetDownloadStatus(), Slot1.GetSlotStatus(), Slot1.GetComputer(), Slot2.GetTeam(), Slot2.GetColour(), Slot2.GetRace());
-				}
-				else
-				{
-					CONSOLE_Print("[GAME: " + m_GameName + "] shuffling slots instead of balancing - the balancing algorithm tried to do an invalid swap (this shouldn't happen)");
-					SendAllChat(m_GHost->m_Language->ShufflingPlayers());
-					ShuffleSlots();
-					return;
-				}
-
-				++CurrentPID;
-				++CurrentSlot;
-			}
-		}
-
-		CONSOLE_Print("[GAME: " + m_GameName + "] balancing slots completed in " + UTIL_ToString(EndTicks - StartTicks) + "ms (with a cost of " + UTIL_ToString(AlgorithmCost) + ")");
-		SendAllChat(m_GHost->m_Language->BalancingSlotsCompleted());
-		SendAllSlotInfo();
-
-		for (unsigned char i = 0; i < MAX_SLOTS; ++i)
-		{
-			bool TeamHasPlayers = false;
-			double TeamScore = 0.0;
-
-			for (vector<CGamePlayer*> ::iterator j = m_Players.begin(); j != m_Players.end(); ++j)
-			{
-				unsigned char SID = GetSIDFromPID((*j)->GetPID());
-
-				if (SID < m_Slots.size() && m_Slots[SID].GetTeam() == i)
-				{
-					TeamHasPlayers = true;
-					double Score = (*j)->GetScore();
-
-					if (Score < -99999.0)
-						Score = m_Map->GetMapDefaultPlayerScore();
-
-					TeamScore += Score;
-				}
-			}
-
-			if (TeamHasPlayers)
-				SendAllChat(m_GHost->m_Language->TeamCombinedScore(UTIL_ToString(i + 1), UTIL_ToString(TeamScore, 2)));
-		}
+	if (!(m_Map->GetMapOptions() & MAPOPT_FIXEDPLAYERSETTINGS))
+	{
+		CONSOLE_Print("[GAME: " + m_GameName + "] error balancing slots - can't balance slots without fixed player settings");
+		return;
 	}
-	else{
-
-		if (!(m_Map->GetMapOptions() & MAPOPT_FIXEDPLAYERSETTINGS))
-		{
-			CONSOLE_Print("[GAME: " + m_GameName + "] error balancing slots - can't balance slots without fixed player settings");
-			return;
-		}
 
 	// setup the necessary variables for the balancing algorithm
 	// use an array of 13 elements for MAX_SLOTS players because GHost++ allocates PID's from 1-MAX_SLOTS (i.e. excluding 0) and we use the PID to index the array
 
 	vector<unsigned char> PlayerIDs;
-	unsigned char TeamSizes[24];
+	unsigned char* TeamSizes = new unsigned char[MAX_SLOTS];
 	double PlayerScores[13];
 	memset(TeamSizes, 0, sizeof(unsigned char) * MAX_SLOTS);
 
@@ -4763,6 +4610,7 @@ void CBaseGame::BalanceSlots()
 		CONSOLE_Print("[GAME: " + m_GameName + "] shuffling slots instead of balancing - the algorithm is too slow (with a cost of " + UTIL_ToString(AlgorithmCost) + ") for this team configuration");
 		SendAllChat(m_GHost->m_Language->ShufflingPlayers());
 		ShuffleSlots();
+		delete TeamSizes;
 		return;
 	}
 
@@ -4801,6 +4649,7 @@ void CBaseGame::BalanceSlots()
 				CONSOLE_Print("[GAME: " + m_GameName + "] shuffling slots instead of balancing - the balancing algorithm tried to do an invalid swap (this shouldn't happen)");
 				SendAllChat(m_GHost->m_Language->ShufflingPlayers());
 				ShuffleSlots();
+				delete TeamSizes;
 				return;
 			}
 
@@ -4837,7 +4686,7 @@ void CBaseGame::BalanceSlots()
 		if (TeamHasPlayers)
 			SendAllChat(m_GHost->m_Language->TeamCombinedScore(UTIL_ToString(i + 1), UTIL_ToString(TeamScore, 2)));
 	}
-}
+	delete TeamSizes;
 }
 
 void CBaseGame :: AddToSpoofed( string server, string name, bool sendMessage )

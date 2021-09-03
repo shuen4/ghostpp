@@ -44,7 +44,7 @@ using namespace boost :: filesystem;
 // CAdminGame
 //
 
-CAdminGame :: CAdminGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nPassword ) : CBaseGame( nGHost, nMap, nSaveGame, nHostPort, nGameState, nGameName, string( ), string(), string( ), string( ) )
+CAdminGame :: CAdminGame( CGHost *nGHost, CMap *nMap, CSaveGame *nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nPassword ) : CBaseGame( nGHost, nMap, nSaveGame, nHostPort, nGameState, nGameName, string( ), string(), string( ), string( ) ,true)
 {
 	m_VirtualHostName = m_GHost->m_VirtualHostName;
 	m_MuteLobby = true;
@@ -873,7 +873,11 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 		else if (Command == "fl" || Command == "fastload") {
 			SendChat(player, "Searching File ...");
 			string SaveFile, ReplayFile, SaveFileNoPath;
-			string s = m_GHost->m_ReplayPath + "GHost++ *.w3g";
+			string s = m_GHost->m_ReplayPath;
+			if (Payload.empty())
+				s += "GHost++ *.w3g";
+			else
+				s += "a.w3g";
 			WIN32_FIND_DATAA FindFileData;
 			SendChat(player, "Searching " + s);
 			HANDLE hFind = FindFirstFileA((LPCSTR)s.c_str(), &FindFileData);
@@ -888,9 +892,11 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 			}
 			ReplayFile = m_GHost->m_ReplayPath + string(FindFileData.cFileName);
 			FindClose(hFind);
-			s = m_GHost->m_SaveGamePath + "GHost++ AutoSave *.w3z";
-			if (!Payload.empty())
-				s = Payload;
+			s = m_GHost->m_SaveGamePath;
+			if (Payload.empty())
+				s += "GHost++ AutoSave *.w3z";
+			else
+				s += Payload;
 			SendChat(player, "Searching " + s);
 			hFind = FindFirstFileA((LPCSTR)s.c_str(), &FindFileData);
 			if (hFind == INVALID_HANDLE_VALUE)

@@ -128,11 +128,13 @@ private:
 	bool m_HoldClan;								// whether to auto hold clan members when creating a game or not
 	bool m_PublicCommands;							// whether to allow public commands or not
 	bool m_LastInviteCreation;						// whether the last invite received was for a clan creation (else, it was for invitation response)
+	bool m_SendMessage;
 
 public:
-	CBNET( CGHost *nGHost, string nServer, string nServerAlias, string nBackupIP, string nBackupPort, string nBNLSServer, uint16_t nBNLSPort, uint32_t nBNLSWardenCookie, string nCDKeyROC, string nCDKeyTFT, string nCountryAbbrev, string nCountry, uint32_t nLocaleID, string nUserName, string nUserPassword, string nFirstChannel, string nRootAdmin, char nCommandTrigger, bool nHoldFriends, bool nHoldClan, bool nPublicCommands, unsigned char nWar3Version, BYTEARRAY nEXEVersion, BYTEARRAY nEXEVersionHash, string nPasswordHashType, string nPVPGNRealmName, uint32_t nMaxMessageLength, uint32_t nHostCounterID );
+	CBNET( CGHost *nGHost, string nServer, string nServerAlias, string nBackupIP, string nBackupPort, string nBNLSServer, uint16_t nBNLSPort, uint32_t nBNLSWardenCookie, string nCDKeyROC, string nCDKeyTFT, string nCountryAbbrev, string nCountry, uint32_t nLocaleID, string nUserName, string nUserPassword, string nFirstChannel, string nRootAdmin, char nCommandTrigger, bool nHoldFriends, bool nHoldClan, bool nPublicCommands, unsigned char nWar3Version, BYTEARRAY nEXEVersion, BYTEARRAY nEXEVersionHash, string nPasswordHashType, string nPVPGNRealmName, uint32_t nMaxMessageLength, uint32_t nHostCounterID, bool nSendMessage);
 	~CBNET( );
 
+	bool GetSendMessage()				{ return m_SendMessage; }
 	bool GetExiting( )					{ return m_Exiting; }
 	string GetServer( )					{ return m_Server; }
 	string GetServerAlias( )			{ return m_ServerAlias; }

@@ -624,6 +624,7 @@ CGHost :: CGHost( CConfig *CFG )
 		string PasswordHashType = CFG->GetString( Prefix + "custom_passwordhashtype", string( ) );
 		string PVPGNRealmName = CFG->GetString( Prefix + "custom_pvpgnrealmname", "PvPGN Realm" );
 		uint32_t MaxMessageLength = CFG->GetInt( Prefix + "custom_maxmessagelength", 200 );
+		bool SendMessage = CFG->GetInt(Prefix + "sendmessage", 1) == 0 ? false : true;
 
 		if( Server.empty( ) )
 			break;
@@ -663,7 +664,7 @@ CGHost :: CGHost( CConfig *CFG )
 #endif
 		}
 
-		m_BNETs.push_back( new CBNET( this, Server, ServerAlias,BackupIP,BackupPort, BNLSServer, (uint16_t)BNLSPort, (uint32_t)BNLSWardenCookie, CDKeyROC, CDKeyTFT, CountryAbbrev, Country, LocaleID, UserName, UserPassword, FirstChannel, RootAdmin, BNETCommandTrigger[0], HoldFriends, HoldClan, PublicCommands, War3Version, EXEVersion, EXEVersionHash, PasswordHashType, PVPGNRealmName, MaxMessageLength, i ) );
+		m_BNETs.push_back( new CBNET( this, Server, ServerAlias,BackupIP,BackupPort, BNLSServer, (uint16_t)BNLSPort, (uint32_t)BNLSWardenCookie, CDKeyROC, CDKeyTFT, CountryAbbrev, Country, LocaleID, UserName, UserPassword, FirstChannel, RootAdmin, BNETCommandTrigger[0], HoldFriends, HoldClan, PublicCommands, War3Version, EXEVersion, EXEVersionHash, PasswordHashType, PVPGNRealmName, MaxMessageLength, i,SendMessage ) );
 	}
 
 	if( m_BNETs.empty( ) )
@@ -1702,20 +1703,20 @@ void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, st
 		if( whisper && (*i)->GetServer( ) == creatorServer )
 		{
 			// note that we send this whisper only on the creator server
-
-			if( gameState == GAME_PRIVATE )
-				(*i)->QueueChatCommand( m_Language->CreatingPrivateGame( gameName, ownerName ), creatorName, whisper );
-			else if( gameState == GAME_PUBLIC )
-				(*i)->QueueChatCommand( m_Language->CreatingPublicGame( gameName, ownerName ), creatorName, whisper );
+			if ((*i)->GetSendMessage())
+				if( gameState == GAME_PRIVATE )
+					(*i)->QueueChatCommand( m_Language->CreatingPrivateGame( gameName, ownerName ), creatorName, whisper );
+				else if( gameState == GAME_PUBLIC )
+					(*i)->QueueChatCommand( m_Language->CreatingPublicGame( gameName, ownerName ), creatorName, whisper );
 		}
 		else
 		{
 			// note that we send this chat message on all other bnet servers
-
-			if( gameState == GAME_PRIVATE )
-				(*i)->QueueChatCommand( m_Language->CreatingPrivateGame( gameName, ownerName ) );
-			else if( gameState == GAME_PUBLIC )
-				(*i)->QueueChatCommand( m_Language->CreatingPublicGame( gameName, ownerName ) );
+			if ((*i)->GetSendMessage())
+				if( gameState == GAME_PRIVATE )
+					(*i)->QueueChatCommand( m_Language->CreatingPrivateGame( gameName, ownerName ) );
+				else if( gameState == GAME_PUBLIC )
+					(*i)->QueueChatCommand( m_Language->CreatingPublicGame( gameName, ownerName ) );
 		}
 
 		if( saveGame )
