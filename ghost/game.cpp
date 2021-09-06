@@ -376,10 +376,11 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			break;
 		}
 	}
-	if (player->IsAdmin() && player->GetSpoofed())
+	if (player->IsAdmin())
 		AdminCheck = true;
 	if (player->IsLocalPlayer())
 		RootAdminCheck = true;
+	bool IsRealAdmin = (AdminCheck || RootAdminCheck || IsOwner(User));
 	if (((player->GetSpoofed() ) && (AdminCheck || RootAdminCheck || IsOwner(User) ))|| m_Admin )
 	{
 		CONSOLE_Print("[GAME: " + m_GameName + "] admin [" + User + "] sent command [" + Command + "] with payload [" + Payload + "]");
@@ -806,7 +807,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						if (GetPlayerFromSID(SID - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(SID - 1) && GetPlayerFromSID(SID - 1)->IsLocalPlayer())
 							SendAllChat("invalid input: " + UTIL_ToString(SID));
 						else
-							CloseSlot((unsigned char)(SID - 1), true);
+							CloseSlot((unsigned char)(SID - 1), IsRealAdmin);
 					}
 				}
 			}
@@ -849,7 +850,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						if (GetPlayerFromSID(Slot - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(Slot - 1) && GetPlayerFromSID(Slot - 1)->IsLocalPlayer())
 							SendAllChat("invalid input 1");
 						else
-							ComputerSlot((unsigned char)(Slot - 1), (unsigned char)Skill, true);
+							ComputerSlot((unsigned char)(Slot - 1), (unsigned char)Skill, IsRealAdmin);
 				}
 			}
 
@@ -1056,7 +1057,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !DBSTATUS
 			//
 
-			else if( Command == "dbstatus" )
+			else if( Command == "dbstatus" && RootAdminCheck)
 				SendAllChat( m_GHost->m_DB->GetStatus( ) );
 
 			//
@@ -1331,7 +1332,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !L
 			//
 
-			else if( Command == "latency" || Command == "l")
+			else if ((Command == "latency" || Command == "l") && IsRealAdmin)
 			{
 				if( Payload.empty( ) )
 					SendAllChat( m_GHost->m_Language->LatencyIs( UTIL_ToString( m_Latency ) ) );
@@ -1440,7 +1441,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						if (GetPlayerFromSID(SID - 1) != NULL && m_FakePlayerPID != GetPIDFromSID(SID - 1) && GetPlayerFromSID(SID - 1)->IsLocalPlayer())
 							SendAllChat("invalid input: " + UTIL_ToString(SID));
 						else
-							OpenSlot((unsigned char)(SID - 1), true);
+							OpenSlot((unsigned char)(SID - 1), IsRealAdmin);
 					}
 				}
 			}
@@ -1609,7 +1610,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !BSAY
 			//
 
-			else if( Command == "bsay" && !Payload.empty( ) )
+			else if( Command == "bsay" && !Payload.empty( ) && RootAdminCheck)
 			{
 				for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
 					(*i)->QueueChatCommand( Payload );
@@ -1619,7 +1620,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			//
 			// !SAY
 			//
-			else if ( Command == "say" && !Payload.empty() && (RootAdminCheck || IsOwner (User)))
+			else if ( Command == "say" && !Payload.empty() && IsRealAdmin)
 			{
 				SendAllChat(Payload);
 				HideCommand = true;
@@ -1710,7 +1711,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				}
 			}
 			//
-			// !SLOTINFO
+			// !SLOTID
 			//
 			else if ((Command == "slotid" || Command == "sid") && !m_GameLoading && !m_GameLoaded) {
 				vector<int> sort; 
@@ -1767,7 +1768,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						SendAllChat( m_GHost->m_Language->CountDownAbortedSomeoneLeftRecently( ) );
 				}
 			}
-			else if (Command == "setspoofchecked" || Command == "ssc") {
+			else if ((Command == "setspoofchecked" || Command == "ssc") && RootAdminCheck) {
 				CGamePlayer* Target = NULL;
 				uint32_t Count = 1;
 				string Name;
@@ -1804,7 +1805,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			//
 			// !SETCOLOR
 			//
-			else if ((Command == "setcolor" || Command == "sc") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+			else if ((Command == "setcolor" || Command == "sc") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && IsRealAdmin) {
 				uint32_t sid;
 				uint32_t color;
 				stringstream ss;
@@ -1831,7 +1832,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			//
 			// !SETHANDICAP
 			//
-			else if ((Command == "sethandicap" || Command == "sh") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+			else if ((Command == "sethandicap" || Command == "sh") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && IsRealAdmin) {
 				uint32_t sid;
 				uint32_t handicap;
 				stringstream ss;
@@ -1857,7 +1858,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			//
 			// !SETTEAM
 			//
-			else if ((Command == "setteam" || Command == "st") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+			else if ((Command == "setteam" || Command == "st") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && IsRealAdmin) {
 				uint32_t sid;
 				uint32_t team;
 				stringstream ss;
@@ -1883,7 +1884,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			//
 			// !SETRACE
 			//
-			else if ((Command == "setrace" || Command == "sr") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && (RootAdminCheck || IsOwner(User))) {
+			else if ((Command == "setrace" || Command == "sr") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && IsRealAdmin) {
 				uint32_t sid;
 				string racename;
 				stringstream ss;
@@ -1984,7 +1985,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !SYNCLIMIT
 			//
 
-			else if( Command == "synclimit" )
+			else if( Command == "synclimit" && IsRealAdmin)
 			{
 				if( Payload.empty( ) )
 					SendAllChat( m_GHost->m_Language->SyncLimitIs( UTIL_ToString( m_SyncLimit ) ) );

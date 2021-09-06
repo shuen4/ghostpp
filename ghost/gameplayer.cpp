@@ -631,6 +631,8 @@ bool CGamePlayer::IsLocalPlayer() {
 	return false;
 }
 bool CGamePlayer::IsAdmin() {
+	if (!m_Spoofed)
+		return false;
 	string name = m_Name;
 	transform(name.begin(), name.end(), name.begin(), (int(*)(int))tolower);
 	std::string s;
