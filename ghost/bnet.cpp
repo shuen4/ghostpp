@@ -44,9 +44,10 @@ using namespace boost :: filesystem;
 // CBNET
 //
 
-CBNET :: CBNET( CGHost *nGHost, string nServer, string nServerAlias, string nBackupIP, string nBackupPort, string nBNLSServer, uint16_t nBNLSPort, uint32_t nBNLSWardenCookie, string nCDKeyROC, string nCDKeyTFT, string nCountryAbbrev, string nCountry, uint32_t nLocaleID, string nUserName, string nUserPassword, string nFirstChannel, string nRootAdmin, char nCommandTrigger, bool nHoldFriends, bool nHoldClan, bool nPublicCommands, unsigned char nWar3Version, BYTEARRAY nEXEVersion, BYTEARRAY nEXEVersionHash, string nPasswordHashType, string nPVPGNRealmName, uint32_t nMaxMessageLength, uint32_t nHostCounterID, bool nSendMessage )
+CBNET :: CBNET( CGHost *nGHost, string nServer, string nServerAlias, string nBackupIP, string nBackupPort, string nBNLSServer, uint16_t nBNLSPort, uint32_t nBNLSWardenCookie, string nCDKeyROC, string nCDKeyTFT, string nCountryAbbrev, string nCountry, uint32_t nLocaleID, string nUserName, string nUserPassword, string nFirstChannel, string nRootAdmin, char nCommandTrigger, bool nHoldFriends, bool nHoldClan, bool nPublicCommands, unsigned char nWar3Version, BYTEARRAY nEXEVersion, BYTEARRAY nEXEVersionHash, string nPasswordHashType, string nPVPGNRealmName, uint32_t nMaxMessageLength, uint32_t nHostCounterID, bool nSendMessage, bool nOverrideGameName )
 {
 	// todotodo: append path seperator to Warcraft3Path if needed
+	m_OverrideGameName = nOverrideGameName;
 	m_SendMessage = nSendMessage;
 	m_GHost = nGHost;
 	m_Socket = new CTCPClient( );
@@ -2246,6 +2247,17 @@ void CBNET :: QueueGameRefresh( unsigned char state, string gameName, string hos
 
 	if( m_LoggedIn && map )
 	{
+		if (m_OverrideGameName) {
+			char s1[4096];
+			char s2[4096];
+			_splitpath(map->GetMapPath().c_str(), NULL, NULL, s1, s2);
+			std::string s3(s1);
+			s3 += s2;
+			gameName = s3;
+		}
+		if (gameName.size() > 31)
+			gameName = gameName.substr(0, 31);
+
 		// construct a fixed host counter which will be used to identify players from this realm
 		// the fixed host counter's 4 most significant bits will contain a 4 bit ID (0-15)
 		// the rest of the fixed host counter will contain the 28 least significant bits of the actual host counter
@@ -2275,8 +2287,8 @@ void CBNET :: QueueGameRefresh( unsigned char state, string gameName, string hos
 
 			boost::mutex::scoped_lock packetsLock( m_PacketsMutex );
 			
-			if( m_GHost->m_Reconnect )
-				m_OutPackets.push( m_Protocol->SEND_SID_STARTADVEX3( state, UTIL_CreateByteArray( MapGameType, false ), map->GetMapGameFlags( ), MapWidth, MapHeight, gameName, hostName, upTime, "Save\\Multiplayer\\" + saveGame->GetFileNameNoPath( ), saveGame->GetMagicNumber( ), map->GetMapSHA1( ), FixedHostCounter ) );
+			if (m_GHost->m_Reconnect)
+				m_OutPackets.push(m_Protocol->SEND_SID_STARTADVEX3(state, UTIL_CreateByteArray(MapGameType, false), map->GetMapGameFlags(), MapWidth, MapHeight, gameName, hostName, upTime, "Save\\Multiplayer\\" + saveGame->GetFileNameNoPath(), saveGame->GetMagicNumber(), map->GetMapSHA1(), FixedHostCounter));
 			else
 				m_OutPackets.push( m_Protocol->SEND_SID_STARTADVEX3( state, UTIL_CreateByteArray( MapGameType, false ), map->GetMapGameFlags( ), UTIL_CreateByteArray( (uint16_t)0, false ), UTIL_CreateByteArray( (uint16_t)0, false ), gameName, hostName, upTime, "Save\\Multiplayer\\" + saveGame->GetFileNameNoPath( ), saveGame->GetMagicNumber( ), map->GetMapSHA1( ), FixedHostCounter ) );
 			

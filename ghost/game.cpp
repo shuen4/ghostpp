@@ -750,24 +750,21 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			// !CLEAR
 			//
 			else if (Command == "clear") {
-				if(!m_GameLoading && !m_GameLoaded)
-					for (int i = 0; i < 8; i++)
-						SendChat(player, " ");
+				if (Payload == "all")
+					if (!m_GameLoading && !m_GameLoaded)
+						for (int i = 0; i < 8; i++)
+							SendAllChat(GetHostPID(), " ", false);
+					else
+						for (int i = 0; i < 32; i++)
+							SendAllChat(GetHostPID(), " ", false);
 				else
-					for (int i = 0; i < 32; i++)
-						SendChat(player, " ");
+					if (!m_GameLoading && !m_GameLoaded)
+						for (int i = 0; i < 8; i++)
+							SendChat(player, " ");
+					else
+						for (int i = 0; i < 32; i++)
+							SendChat(player, " ");
 			}
-
-			//
-			// !CLEARALL
-			//
-			else if (Command == "clearall" && (RootAdminCheck || IsOwner(User)))
-				if (!m_GameLoading && !m_GameLoaded)
-					for (int i = 0; i < 8; i++)
-						SendAllChat(GetHostPID(), " ", false);
-				else
-					for (int i = 0; i < 32; i++)
-						SendAllChat(GetHostPID(), " ", false);
 			//
 			// !CLEARHCL
 			//
@@ -1498,6 +1495,29 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			}
 
 			//
+			// !whois
+			//
+			else if(Command == "whois") {
+				if (Payload.empty())
+					for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i)
+						SendAllChat((*i)->GetPID(), (*i)->GetName(), true);
+				else {
+					int tmp = 0;
+					for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i) {
+						//CONSOLE_Print((*i)->GetName());
+						//CONSOLE_Print(UTIL_ToString((*i)->GetName().find(Payload)));
+						if ((*i)->GetName().find(Payload) != string::npos)
+							SendAllChat((*i)->GetPID(), (*i)->GetName(), true);
+						else
+							tmp++;
+					}
+					//CONSOLE_Print(UTIL_ToString(tmp));
+					if (tmp == m_Players.size())
+						SendAllChat(GetHostPID(), "No matches found", true);
+				}
+			}
+			
+			//
 			// !PRIV (rehost as private game)
 			//
 
@@ -2186,7 +2206,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 		uint32_t Kicked = 0;
 		uint32_t KickPing = 0;
 
-		if (!m_GameLoading && !m_GameLoaded && !Payload.empty())
+		if (!m_GameLoading && !m_GameLoaded && !Payload.empty() && (RootAdminCheck || IsOwner(User)))
 			KickPing = UTIL_ToUInt32(Payload);
 
 		// copy the m_Players vector so we can sort by descending ping so it's easier to find players with high pings
@@ -2221,7 +2241,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			if (i != SortedPlayers.end() - 1)
 				Pings += ", ";
 
-			if ((m_GameLoading || m_GameLoaded) && Pings.size() > 90)
+			if ((m_GameLoading || m_GameLoaded) && Pings.size() > 70)
 			{
 				// cut the text into multiple lines ingame
 

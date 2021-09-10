@@ -625,6 +625,7 @@ CGHost :: CGHost( CConfig *CFG )
 		string PVPGNRealmName = CFG->GetString( Prefix + "custom_pvpgnrealmname", "PvPGN Realm" );
 		uint32_t MaxMessageLength = CFG->GetInt( Prefix + "custom_maxmessagelength", 200 );
 		bool SendMessage = CFG->GetInt(Prefix + "sendmessage", 1) == 0 ? false : true;
+		bool MapFileNameAsGameName = CFG->GetInt(Prefix + "overridegamename", 0) == 0 ? false : true;
 
 		if( Server.empty( ) )
 			break;
@@ -664,7 +665,7 @@ CGHost :: CGHost( CConfig *CFG )
 #endif
 		}
 
-		m_BNETs.push_back( new CBNET( this, Server, ServerAlias,BackupIP,BackupPort, BNLSServer, (uint16_t)BNLSPort, (uint32_t)BNLSWardenCookie, CDKeyROC, CDKeyTFT, CountryAbbrev, Country, LocaleID, UserName, UserPassword, FirstChannel, RootAdmin, BNETCommandTrigger[0], HoldFriends, HoldClan, PublicCommands, War3Version, EXEVersion, EXEVersionHash, PasswordHashType, PVPGNRealmName, MaxMessageLength, i,SendMessage ) );
+		m_BNETs.push_back(new CBNET(this, Server, ServerAlias, BackupIP, BackupPort, BNLSServer, (uint16_t)BNLSPort, (uint32_t)BNLSWardenCookie, CDKeyROC, CDKeyTFT, CountryAbbrev, Country, LocaleID, UserName, UserPassword, FirstChannel, RootAdmin, BNETCommandTrigger[0], HoldFriends, HoldClan, PublicCommands, War3Version, EXEVersion, EXEVersionHash, PasswordHashType, PVPGNRealmName, MaxMessageLength, i, SendMessage, MapFileNameAsGameName));
 	}
 
 	if( m_BNETs.empty( ) )
