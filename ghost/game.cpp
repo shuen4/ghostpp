@@ -1500,20 +1500,17 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			else if(Command == "whois") {
 				if (Payload.empty())
 					for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i)
-						SendAllChat((*i)->GetPID(), (*i)->GetName(), true);
+						SendAllChat((*i)->GetPID(), (*i)->GetName(), false);
 				else {
 					int tmp = 0;
 					for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i) {
-						//CONSOLE_Print((*i)->GetName());
-						//CONSOLE_Print(UTIL_ToString((*i)->GetName().find(Payload)));
 						if ((*i)->GetName().find(Payload) != string::npos)
-							SendAllChat((*i)->GetPID(), (*i)->GetName(), true);
+							SendAllChat((*i)->GetPID(), (*i)->GetName(), false);
 						else
 							tmp++;
 					}
-					//CONSOLE_Print(UTIL_ToString(tmp));
 					if (tmp == m_Players.size())
-						SendAllChat(GetHostPID(), "No matches found", true);
+						SendAllChat(GetHostPID(), "No matches found", false);
 				}
 			}
 			

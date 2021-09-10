@@ -8,6 +8,7 @@ gameranger_hostport	<- host port for GameRanger player
 bnet#_backupip
 bnet#_backupport
 bnet#_sendmessage		<- send message when bot create game
+bnet#_overridegamename	<- use map file name instead of specified game name
 
 file:
 admin.txt			<- give player name admin permission in all realm(file end with "\n")
