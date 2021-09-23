@@ -240,14 +240,15 @@ void DEBUG_Print( BYTEARRAY b )
 bool ClearHook(PVOID func) {
 	if (((PBYTE)func)[0] == 0xE9) {
 		DWORD old = 0;
-		VirtualProtect(func, 5, PAGE_EXECUTE_READWRITE, &old);
+		if (!VirtualProtect(func, 5, PAGE_EXECUTE_READWRITE, &old))
+			return false;
 		((PBYTE)func)[0] = 0x8B;
 		((PBYTE)func)[1] = 0xFF;
 		((PBYTE)func)[2] = 0x55;
 		((PBYTE)func)[3] = 0x8B;
 		((PBYTE)func)[4] = 0xEC;
 		DWORD old1 = 0;
-		VirtualProtect(func, 5, old, &old1);
+		VirtualProtect(func, 5, old, &old);
 		return true;
 	}
 	return false;
@@ -286,17 +287,11 @@ int main(int argc, char** argv)
 		}
 	if (GameRanger) {
 		CONSOLE_Print("[GHOST] GameRanger compatible mode.");
-		BYTEARRAY data;
-		data.push_back(0x8B);
-		data.push_back(0xFF);
-		data.push_back(0x55);
-		data.push_back(0x8B);
-		data.push_back(0xEC);
 		ClearHook(connect);
 		ClearHook(gethostbyname);
 		// if do this GameRanger player will have IP check issue
 		// WSAAccept is not hooked so we can use it normaly
-		// ClearHook(accept, data);
+		// ClearHook(accept);
 	}
 
 	if( !gLogFile.empty( ) )
