@@ -140,6 +140,9 @@ protected:
 	bool m_DebugChat;								// show chat ToPIDs in console
 	bool m_Saved;
 	bool m_IsAdminGame;
+	bool m_IgnoreDesync;
+	bool m_IgnoreDesyncChatSent;
+	uint32_t m_IgnoreDesyncWarnTime;
 
 public:
 	vector<CGameSlot> m_Slots;						// vector of slots

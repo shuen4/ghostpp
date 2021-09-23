@@ -2288,9 +2288,9 @@ void CBNET :: QueueGameRefresh( unsigned char state, string gameName, string hos
 			boost::mutex::scoped_lock packetsLock( m_PacketsMutex );
 			
 			if (m_GHost->m_Reconnect)
-				m_OutPackets.push(m_Protocol->SEND_SID_STARTADVEX3(state, UTIL_CreateByteArray(MapGameType, false), map->GetMapGameFlags(), MapWidth, MapHeight, gameName, hostName, upTime, "Save\\Multiplayer\\" + saveGame->GetFileNameNoPath(), saveGame->GetMagicNumber(), map->GetMapSHA1(), FixedHostCounter));
+				m_OutPackets.push(m_Protocol->SEND_SID_STARTADVEX3(state, UTIL_CreateByteArray(MapGameType, false), map->GetMapGameFlags(), MapWidth, MapHeight, gameName, hostName, upTime, (m_GHost->m_LANWar3Version == 30 ? "Save/Multiplayer/" : "Save\\Multiplayer\\") + saveGame->GetFileNameNoPath(), saveGame->GetMagicNumber(), map->GetMapSHA1(), FixedHostCounter));
 			else
-				m_OutPackets.push( m_Protocol->SEND_SID_STARTADVEX3( state, UTIL_CreateByteArray( MapGameType, false ), map->GetMapGameFlags( ), UTIL_CreateByteArray( (uint16_t)0, false ), UTIL_CreateByteArray( (uint16_t)0, false ), gameName, hostName, upTime, "Save\\Multiplayer\\" + saveGame->GetFileNameNoPath( ), saveGame->GetMagicNumber( ), map->GetMapSHA1( ), FixedHostCounter ) );
+				m_OutPackets.push( m_Protocol->SEND_SID_STARTADVEX3( state, UTIL_CreateByteArray( MapGameType, false ), map->GetMapGameFlags( ), UTIL_CreateByteArray( (uint16_t)0, false ), UTIL_CreateByteArray( (uint16_t)0, false ), gameName, hostName, upTime, (m_GHost->m_LANWar3Version == 30 ? "Save/Multiplayer/" : "Save\\Multiplayer\\") + saveGame->GetFileNameNoPath( ), saveGame->GetMagicNumber( ), map->GetMapSHA1( ), FixedHostCounter ) );
 			
 			packetsLock.unlock( );
 		}

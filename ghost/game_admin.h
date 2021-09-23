@@ -62,6 +62,7 @@ public:
 	virtual void SendWelcomeMessage( CGamePlayer *player );
 	virtual void EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinPlayer *joinPlayer );
 	virtual bool EventPlayerBotCommand( CGamePlayer *player, string command, string payload );
+	virtual void EventPlayerMapSize(CGamePlayer* player, CIncomingMapSize* mapSize);
 };
 
 #endif

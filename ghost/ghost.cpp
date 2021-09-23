@@ -236,19 +236,18 @@ void DEBUG_Print( BYTEARRAY b )
 
 	cout << "}" << endl;
 }
+
 bool ClearHook(PVOID func) {
 	if (((PBYTE)func)[0] == 0xE9) {
 		DWORD old = 0;
-		if (!VirtualProtect(func, 5, PAGE_EXECUTE_READWRITE, &old))
-			return false;
+		VirtualProtect(func, 5, PAGE_EXECUTE_READWRITE, &old);
 		((PBYTE)func)[0] = 0x8B;
 		((PBYTE)func)[1] = 0xFF;
 		((PBYTE)func)[2] = 0x55;
 		((PBYTE)func)[3] = 0x8B;
 		((PBYTE)func)[4] = 0xEC;
 		DWORD old1 = 0;
-		if (!VirtualProtect(func, 5, old, &old1))
-			return false;
+		VirtualProtect(func, 5, old, &old1);
 		return true;
 	}
 	return false;
@@ -280,13 +279,24 @@ int main(int argc, char** argv)
 	remove(gLogFile.c_str());
 	gLogMethod = CFG.GetInt( "bot_logmethod", 1 );
 	bool GameRanger = CFG.GetInt("gameranger", 0) == 0 ? false : true;
+	if (!GameRanger)
+		if (GetModuleHandleA("GameRanger.dll") != NULL) {
+			CONSOLE_Print("[GHOST] Detected GameRanger.dll, force switch on compatible mode");
+			GameRanger = true;
+		}
 	if (GameRanger) {
 		CONSOLE_Print("[GHOST] GameRanger compatible mode.");
+		BYTEARRAY data;
+		data.push_back(0x8B);
+		data.push_back(0xFF);
+		data.push_back(0x55);
+		data.push_back(0x8B);
+		data.push_back(0xEC);
 		ClearHook(connect);
 		ClearHook(gethostbyname);
 		// if do this GameRanger player will have IP check issue
 		// WSAAccept is not hooked so we can use it normaly
-		//ClearHook(accept);
+		// ClearHook(accept, data);
 	}
 
 	if( !gLogFile.empty( ) )
@@ -440,7 +450,9 @@ int main(int argc, char** argv)
 CGHost :: CGHost( CConfig *CFG )
 {
 	m_GameRanger = CFG->GetInt("gameranger", 0) == 0 ? false : true;
-	m_GameRangerHostPort = CFG->GetInt("gameranger_hostport", 6115);
+	if (GetModuleHandleA("GameRanger.dll") != NULL)
+		m_GameRanger = true;
+	m_GameRangerHostPort = CFG->GetInt("gameranger_hostport", 6116);
 	m_UDPSocket = new CUDPSocket( );
 	m_UDPSocket->SetBroadcastTarget( CFG->GetString( "udp_broadcasttarget", string( ) ) );
 	m_UDPSocket->SetDontRoute( CFG->GetInt( "udp_dontroute", 0 ) == 0 ? false : true );
@@ -536,7 +548,7 @@ CGHost :: CGHost( CConfig *CFG )
 	m_Enabled = true;
 	m_Version = UTIL_ToString(__DATE_YEAR__) + "/" + UTIL_ToString(__DATE_MONTH__) + "/" + UTIL_ToString(__DATE_DAY__) + " " + __TIME__ + " edited from 17.2";
 	m_HostCounter = 1;
-	m_FakePlayer = CFG->GetInt("bot_fakeplayer", 1) == 0 ? false : true;
+	m_FakePlayer = CFG->GetInt("bot_fakeplayer", 0) == 0 ? false : true;
 	m_AutoHostMaximumGames = CFG->GetInt( "autohost_maxgames", 0 );
 	m_AutoHostAutoStartPlayers = CFG->GetInt( "autohost_startplayers", 0 );
 	m_AutoHostGameName = CFG->GetString( "autohost_gamename", string( ) );
@@ -555,12 +567,12 @@ CGHost :: CGHost( CConfig *CFG )
 	else
 		CONSOLE_Print( "[GHOST] acting as Warcraft III: Reign of Chaos" );
 
-	m_HostPort = CFG->GetInt( "bot_hostport", 6112 );
+	m_HostPort = CFG->GetInt( "bot_hostport", 6113 );
 	m_Reconnect = CFG->GetInt( "bot_reconnect", 1 ) == 0 ? false : true;
 	m_ReconnectPort = CFG->GetInt( "bot_reconnectport", 6114 );
 	m_DefaultMap = CFG->GetString( "bot_defaultmap", "map" );
 	m_AdminGameCreate = CFG->GetInt( "admingame_create", 0 ) == 0 ? false : true;
-	m_AdminGamePort = CFG->GetInt( "admingame_port", 6113 );
+	m_AdminGamePort = CFG->GetInt( "admingame_port", 6115 );
 	m_AdminGamePassword = CFG->GetString( "admingame_password", string( ) );
 	m_AdminGameMap = CFG->GetString( "admingame_map", string( ) );
 	m_LANWar3Version = CFG->GetInt( "lan_war3version", 29 );
@@ -1386,6 +1398,8 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	m_AllowDownloads = CFG->GetInt( "bot_allowdownloads", 0 );
 	m_PingDuringDownloads = CFG->GetInt( "bot_pingduringdownloads", 0 ) == 0 ? false : true;
 	m_MaxDownloaders = CFG->GetInt( "bot_maxdownloaders", 3 );
+	if (m_GameRanger)
+		m_MaxDownloaders += 1;
 	m_MaxDownloadSpeed = CFG->GetInt( "bot_maxdownloadspeed", 100 );
 	m_LCPings = CFG->GetInt( "bot_lcpings", 1 ) == 0 ? false : true;
 	m_AutoKickPing = CFG->GetInt( "bot_autokickping", 400 );
@@ -1393,6 +1407,9 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	m_IPBlackListFile = CFG->GetString( "bot_ipblacklistfile", "ipblacklist.txt" );
 	m_LobbyTimeLimit = CFG->GetInt( "bot_lobbytimelimit", 10 );
 	m_Latency = CFG->GetInt( "bot_latency", 100 );
+	if (m_GameRanger && m_Latency < 99)
+		// bandwidth limit
+		m_Latency = 100;
 	m_SyncLimit = CFG->GetInt( "bot_synclimit", 50 );
 	m_VoteKickAllowed = CFG->GetInt( "bot_votekickallowed", 1 ) == 0 ? false : true;
 	m_VoteKickPercentage = CFG->GetInt( "bot_votekickpercentage", 100 );
@@ -1620,18 +1637,21 @@ void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, st
 
 		if( MapPath1 != MapPath2 )
 		{
-			CONSOLE_Print( "[GHOST] path mismatch, saved game path is [" + MapPath1 + "] but map path is [" + MapPath2 + "]" );
+			if (m_LANWar3Version != 30) {
+				CONSOLE_Print("[GHOST] path mismatch, saved game path is [" + MapPath1 + "] but map path is [" + MapPath2 + "]");
 
-			for( vector<CBNET *> :: iterator i = m_BNETs.begin( ); i != m_BNETs.end( ); ++i )
-			{
-				if( (*i)->GetServer( ) == creatorServer )
-					(*i)->QueueChatCommand( m_Language->UnableToCreateGameSaveGameMapMismatch( gameName ), creatorName, whisper );
+				for (vector<CBNET*> ::iterator i = m_BNETs.begin(); i != m_BNETs.end(); ++i)
+				{
+					if ((*i)->GetServer() == creatorServer)
+						(*i)->QueueChatCommand(m_Language->UnableToCreateGameSaveGameMapMismatch(gameName), creatorName, whisper);
+				}
+
+				if (m_AdminGame)
+					m_AdminGame->SendAllChat(m_Language->UnableToCreateGameSaveGameMapMismatch(gameName));
+
+				return;
 			}
-
-			if( m_AdminGame )
-				m_AdminGame->SendAllChat( m_Language->UnableToCreateGameSaveGameMapMismatch( gameName ) );
-
-			return;
+			CONSOLE_Print("[GHOST] path mismatch, saved game path is [" + MapPath1 + "] but map path is [" + MapPath2 + "] - ignoring");
 		}
 
 		if( m_EnforcePlayers.empty( ) )

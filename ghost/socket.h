@@ -212,6 +212,7 @@ public:
 	virtual bool SendTo( struct sockaddr_in sin, BYTEARRAY message );
 	virtual bool SendTo( string address, uint16_t port, BYTEARRAY message );
 	virtual bool Broadcast( uint16_t port, BYTEARRAY message );
+	virtual bool BroadcastNoHook(uint16_t port, BYTEARRAY message);
 	virtual void SetBroadcastTarget( string subnet );
 	virtual void SetDontRoute( bool dontRoute );
 };

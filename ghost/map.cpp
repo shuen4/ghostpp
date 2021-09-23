@@ -991,31 +991,24 @@ void CMap :: CheckValid( )
 	if (calcfromlocal) {
 		m_Valid = true;
 		CONSOLE_Print("[MAP] recalc from local pre extracted files");
-		/*
-		std::string filename;
-		filename = m_GHost->m_MapCFGPath;
-		filename += "common.j";
-		HANDLE common_j=CreateFileA(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (common_j != INVALID_HANDLE_VALUE) {
-			filename = m_GHost->m_MapCFGPath;
-			filename += "blizzard.j";
-			HANDLE blizzard_j = CreateFileA(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (blizzard_j != INVALID_HANDLE_VALUE) {
-				filename = m_GHost->m_MapCFGPath;
-				filename += "war3map.j";
-				HANDLE war3map_j = CreateFileA(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-				if (war3map_j != INVALID_HANDLE_VALUE) {*/
 		string CommonJ = UTIL_FileRead(m_GHost->m_MapCFGPath + "local\\common.j");
+		if (CommonJ.empty()) {
+			CONSOLE_Print("[MAP] unable to read file [" + m_GHost->m_MapCFGPath + "local\\common.j]. using [" + m_GHost->m_MapCFGPath + "common.j] instead");
+			CommonJ = UTIL_FileRead(m_GHost->m_MapCFGPath + "common.j");
+		}
 		if (CommonJ.empty())
-			CONSOLE_Print("[MAP] unable to calculate map_crc/sha1 - unable to read file [" + m_GHost->m_MapCFGPath + "local\\common.j]");
+			CONSOLE_Print("[MAP] unable to calculate map_crc/sha1 - unable to read file [" + m_GHost->m_MapCFGPath + "common.j]");
 		else {
 			string BlizzardJ = UTIL_FileRead(m_GHost->m_MapCFGPath + "local\\blizzard.j");
+			if (BlizzardJ.empty()) {
+				CONSOLE_Print("[MAP] unable to read file [" + m_GHost->m_MapCFGPath + "local\\blizzard.j]. using [" + m_GHost->m_MapCFGPath + "blizzard.j] instead");
+				BlizzardJ = UTIL_FileRead(m_GHost->m_MapCFGPath + "blizzard.j");
+			}
 			if (BlizzardJ.empty())
-				CONSOLE_Print("[MAP] unable to calculate map_crc/sha1 - unable to read file [" + m_GHost->m_MapCFGPath + "local\\blizzard.j]");
+				CONSOLE_Print("[MAP] unable to calculate map_crc/sha1 - unable to read file [" + m_GHost->m_MapCFGPath + "blizzard.j]");
 			else {
-				string War3mapJ = UTIL_FileRead(m_GHost->m_MapCFGPath + "local\\war3map.j");
-				if (War3mapJ.empty())
-					CONSOLE_Print("[MAP] unable to calculate map_crc/sha1 - unable to read file [" + m_GHost->m_MapCFGPath + "local\\war3map.j]");
+				if (!UTIL_FileExists(m_GHost->m_MapCFGPath + "local\\war3map.j"))
+					CONSOLE_Print("[MAP] unable to calculate map_crc/sha1 - file not exist [" + m_GHost->m_MapCFGPath + "local\\war3map.j]");
 				else {
 					BYTEARRAY MapCRC;
 					BYTEARRAY MapSHA1;
@@ -1053,29 +1046,6 @@ void CMap :: CheckValid( )
 								continue;
 						Val = ROTL(Val ^ XORRotateLeft((unsigned char*)filedata.c_str(), filedata.size()), 3);
 						m_GHost->m_SHA->Update((unsigned char*)filedata.c_str(), filedata.size());
-
-						/*HANDLE SubFile;
-
-						if (SFileOpenFileEx(MapMPQ, (*i).c_str(), 0, &SubFile))
-						{
-							uint32_t FileLength = SFileGetFileSize(SubFile, NULL);
-
-							if (FileLength > 0 && FileLength != 0xFFFFFFFF)
-							{
-								char* SubFileData = new char[FileLength];
-								DWORD BytesRead = 0;
-
-								if (SFileReadFile(SubFile, SubFileData, FileLength, &BytesRead, NULL))
-								{
-									Val = ROTL(Val ^ XORRotateLeft((unsigned char*)SubFileData, BytesRead), 3);
-									m_GHost->m_SHA->Update((unsigned char*)SubFileData, BytesRead);
-								}
-
-								delete[] SubFileData;
-							}
-
-							SFileCloseFile(SubFile);
-						}*/
 					}
 					MapCRC = UTIL_CreateByteArray(Val, false);
 					CONSOLE_Print("[MAP] calculated map_crc = " + UTIL_ByteArrayToDecString(MapCRC));
@@ -1088,46 +1058,6 @@ void CMap :: CheckValid( )
 					CONSOLE_Print("[MAP] calculated map_sha1 = " + UTIL_ByteArrayToDecString(MapSHA1));
 					m_MapCRC = MapCRC;
 					m_MapSHA1 = MapSHA1;
-					/*
-					DWORD common_j_size = GetFileSize(common_j, NULL);
-					DWORD blizzard_j_size = GetFileSize(blizzard_j, NULL);
-					DWORD war3map_j_size = GetFileSize(war3map_j, NULL);
-					char* common_j_data = new char[common_j_size];
-					char* blizzard_j_data = new char[blizzard_j_size];
-					char* war3map_j_data = new char[war3map_j_size];
-					BYTEARRAY MapCRC;
-					BYTEARRAY MapSHA1;
-					DWORD lpNumberOfBytesRead;
-					m_GHost->m_SHA->Reset();
-
-					uint32_t Val = 0;
-					ReadFile(common_j, common_j_data, common_j_size - 1, &lpNumberOfBytesRead, NULL);
-					common_j_data[common_j_size] = '\0';
-					Val = Val ^ XORRotateLeft((unsigned char*)common_j_data, lpNumberOfBytesRead);
-					m_GHost->m_SHA->Update((unsigned char*)common_j_data, lpNumberOfBytesRead);
-
-					ReadFile(blizzard_j, blizzard_j_data, blizzard_j_size - 1, &lpNumberOfBytesRead, NULL);
-					blizzard_j_data[common_j_size] = '\0';
-					Val = Val ^ XORRotateLeft((unsigned char*)blizzard_j_data, lpNumberOfBytesRead);
-					m_GHost->m_SHA->Update((unsigned char*)blizzard_j_data, lpNumberOfBytesRead);
-					Val = ROTL(Val, 3);
-					Val = ROTL(Val ^ 0x03F1379E, 3);
-					m_GHost->m_SHA->Update((unsigned char*)"\x9E\x37\xF1\x03", 4);
-
-					ReadFile(war3map_j, war3map_j_data, war3map_j_size - 1, &lpNumberOfBytesRead, NULL);
-					war3map_j_data[common_j_size] = '\0';
-					Val = ROTL(Val ^ XORRotateLeft((unsigned char*)war3map_j_data, lpNumberOfBytesRead), 3);
-					m_GHost->m_SHA->Update((unsigned char*)war3map_j_data, lpNumberOfBytesRead);
-					MapCRC = UTIL_CreateByteArray(Val, false);
-					CONSOLE_Print("[MAP] calculated map_crc = " + UTIL_ByteArrayToDecString(MapCRC));
-					m_GHost->m_SHA->Final();
-					unsigned char SHA1[20];
-					memset(SHA1, 0, sizeof(unsigned char) * 20);
-					m_GHost->m_SHA->GetHash(SHA1);
-					MapSHA1 = UTIL_CreateByteArray(SHA1, 20);
-					CONSOLE_Print("[MAP] calculated map_sha1 = " + UTIL_ByteArrayToDecString(MapSHA1));
-					m_MapCRC = MapCRC;
-					m_MapSHA1 = MapSHA1;*/
 				}
 			}
 		}

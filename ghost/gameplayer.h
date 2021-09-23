@@ -47,11 +47,13 @@ protected:
 	bool m_Error;
 	string m_ErrorString;
 	CIncomingJoinPlayer *m_IncomingJoinPlayer;
+	bool m_FromGameRanger;
 
 public:
-	CPotentialPlayer( CGameProtocol *nProtocol, CBaseGame *nGame, CTCPSocket *nSocket );
+	CPotentialPlayer(CGameProtocol* nProtocol, CBaseGame* nGame, CTCPSocket* nSocket, bool nFromGameRanger);
 	virtual ~CPotentialPlayer( );
 
+	virtual bool FromGameRanger()					{ return m_FromGameRanger; }
 	virtual CTCPSocket *GetSocket( )				{ return m_Socket; }
 	virtual BYTEARRAY GetExternalIP( );
 	virtual string GetExternalIPString( );

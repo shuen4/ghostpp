@@ -671,6 +671,49 @@ bool CUDPSocket :: Broadcast( uint16_t port, BYTEARRAY message )
 	return true;
 }
 
+bool CUDPSocket::BroadcastNoHook(uint16_t port, BYTEARRAY message)
+{
+	if (m_Socket == INVALID_SOCKET || m_HasError)
+		return false;
+
+	struct sockaddr_in sin;
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = m_BroadcastTarget.s_addr;
+	sin.sin_port = htons(port);
+
+	string MessageString = string(message.begin(), message.end());
+
+	// no guarantee 100% work
+	unsigned char tmp[] = {
+		0x8B,0xFF,				// mov edi,edi
+		0x55,					// push ebp
+		0x8B,0xEC,				// mov ebp,esp
+		0xE9,					// jmp
+		0,						// 
+		0,						// 
+		0,						// 
+		0						// 
+	};
+	int b = (int)sendto;
+	int c = (int)tmp + 5;
+	int a = b - c;
+	tmp[6] = (unsigned char)(a >> 0);
+	tmp[7] = (unsigned char)(a >> 8);
+	tmp[8] = (unsigned char)(a >> 16);
+	tmp[9] = (unsigned char)(a >> 24);
+	DWORD old = 0;
+	VirtualProtect(tmp, 10, PAGE_EXECUTE_READWRITE, &old);
+	typedef int(__stdcall* typedef_sendto)(SOCKET, const char*, int, int, const sockaddr*, int);
+
+	if (((typedef_sendto)(PVOID)tmp)(m_Socket, MessageString.c_str(), MessageString.size(), 0, (struct sockaddr*)&sin, sizeof(sin)) == -1)
+	{
+		CONSOLE_Print("[UDPSOCKET] failed to broadcast packet (port " + UTIL_ToString(port) + ", size " + UTIL_ToString(MessageString.size()) + " bytes)");
+		return false;
+	}
+
+	return true;
+}
+
 void CUDPSocket :: SetBroadcastTarget( string subnet )
 {
 	if( subnet.empty( ) )

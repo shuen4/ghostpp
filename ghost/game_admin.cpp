@@ -1393,4 +1393,6 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 	// if you actually wanted to relay chat commands you would have to set m_MuteLobby = false AND return false here
 
 	return true;
+
 }
+void CAdminGame::EventPlayerMapSize(CGamePlayer* player, CIncomingMapSize* mapSize) {}

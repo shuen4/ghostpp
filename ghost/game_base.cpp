@@ -45,6 +45,9 @@
 
 CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer, bool nIsAdminGame) : m_GHost(nGHost), m_SaveGame(nSaveGame), m_Replay(NULL), m_Exiting(false), m_Saving(false), m_HostPort(nHostPort), m_GameState(nGameState), m_VirtualHostPID(255), m_FakePlayerPID(255), m_GProxyEmptyActions(0), m_GameName(nGameName), m_LastGameName(nGameName), m_VirtualHostName(m_GHost->m_VirtualHostName), m_OwnerName(nOwnerName), m_CreatorName(nCreatorName), m_CreatorServer(nCreatorServer), m_HCLCommandString(nMap->GetMapDefaultHCL()), m_RandomSeed(GetTicks()), m_HostCounter(m_GHost->m_HostCounter++), m_EntryKey(rand()), m_Latency(m_GHost->m_Latency), m_SyncLimit(m_GHost->m_SyncLimit), m_SyncCounter(0), m_GameTicks(0), m_CreationTime(GetTime()), m_LastPingTime(GetTime()), m_LastRefreshTime(GetTime()), m_LastDownloadTicks(GetTime()), m_DownloadCounter(0), m_LastDownloadCounterResetTicks(GetTime()), m_LastAnnounceTime(0), m_AnnounceInterval(0), m_LastAutoStartTime(GetTime()), m_AutoStartPlayers(0), m_LastCountDownTicks(0), m_CountDownCounter(0), m_StartedLoadingTicks(0), m_StartPlayers(0), m_LastLagScreenResetTime(0), m_LastActionSentTicks(0), m_LastActionLateBy(0), m_StartedLaggingTime(0), m_LastLagScreenTime(0), m_LastReservedSeen(GetTime()), m_StartedKickVoteTime(0), m_GameOverTime(0), m_LastPlayerLeaveTicks(0), m_MinimumScore(0.), m_MaximumScore(0.), m_SlotInfoChanged(false), m_Locked(false), m_RefreshMessages(m_GHost->m_RefreshMessages), m_RefreshError(false), m_RefreshRehosted(false), m_MuteAll(false), m_MuteLobby(false), m_CountDownStarted(false), m_GameLoading(false), m_GameLoaded(false), m_LoadInGame(nMap->GetMapLoadInGame()), m_Lagging(false), m_AutoSave(m_GHost->m_AutoSave), m_MatchMaking(false), m_LocalAdminMessages(m_GHost->m_LocalAdminMessages), m_DoDelete(0), m_LastReconnectHandleTime(0), m_FakePlayerReplacedSlotData(nMap->GetSlots()[0]), m_FakePlayerReplacedSlot(false), m_IsAdminGame(nIsAdminGame)
 {
+	m_IgnoreDesync = false;
+	m_IgnoreDesyncWarnTime = 0;
+	m_IgnoreDesyncChatSent = false;
 	m_Saved = false;
 	m_MainOwnerName = nOwnerName;
 	m_BackupOwnerName = nBackupOwnerName;
@@ -540,11 +543,13 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 					MapHeight.push_back(0);
 					MapHeight.push_back(0);
 				}
-				if (!m_IsAdminGame) {
-					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
-					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+				if (m_IsAdminGame)
+					m_GHost->m_UDPSocket->BroadcastNoHook(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, (m_GHost->m_LANWar3Version == 30 ? "Save/Multiplayer/" : "Save\\Multiplayer\\") + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
+				else {
+					if (m_GHost->m_GameRanger)
+						m_GHost->m_UDPSocket->BroadcastNoHook(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, (m_GHost->m_LANWar3Version == 30 ? "Save/Multiplayer/" : "Save\\Multiplayer\\") + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, (m_GHost->m_LANWar3Version == 30 ? "Save/Multiplayer/" : "Save\\Multiplayer\\") + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 				}
-				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, "Save\\Multiplayer\\" + m_SaveGame->GetFileNameNoPath(), m_SaveGame->GetMagicNumber(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 			}
 			else
 			{
@@ -566,11 +571,13 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 					MapHeight.push_back(0);
 					MapHeight.push_back(0);
 				}
-				if (!m_IsAdminGame) {
-					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
-					m_GHost->m_UDPSocket->SendTo("127.255.255.255", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
+				if (m_IsAdminGame)
+					m_GHost->m_UDPSocket->BroadcastNoHook(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS,m_HostPort, FixedHostCounter, m_EntryKey));
+				else {
+					if (m_GHost->m_GameRanger)
+						m_GHost->m_UDPSocket->BroadcastNoHook(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_HostPort, FixedHostCounter, m_EntryKey));
+					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 				}
-				m_GHost->m_UDPSocket->SendTo("127.0.0.1", 6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger && !m_IsAdminGame ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 			}
 		}
 	}
@@ -653,12 +660,20 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 	if( !m_GameLoading && !m_GameLoaded && GetTicks( ) - m_LastDownloadTicks >= 100 )
 	{
 		uint32_t Downloaders = 0;
+		if (m_GHost->m_GameRanger)
+			Downloaders += 1;
+		bool GameRangerDownloaderFound = false;
 
 		for( vector<CGamePlayer *> :: iterator i = m_Players.begin( ); i != m_Players.end( ); ++i )
 		{
 			if( (*i)->GetDownloadStarted( ) && !(*i)->GetDownloadFinished( ) )
 			{
-				++Downloaders;
+				if (!(*i)->FromGameRanger())
+					++Downloaders;
+				else if (!GameRangerDownloaderFound)
+					GameRangerDownloaderFound = true;
+				else
+					continue;
 
 				if( m_GHost->m_MaxDownloaders > 0 && Downloaders > m_GHost->m_MaxDownloaders )
 					break;
@@ -1180,7 +1195,7 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 				if( m_GHost->m_TCPNoDelay )
 					NewSocket->SetNoDelay( true );
 
-				m_Potentials.push_back( new CPotentialPlayer( m_Protocol, this, NewSocket ) );
+				m_Potentials.push_back(new CPotentialPlayer(m_Protocol, this, NewSocket, false));
 			}
 			else
 			{
@@ -1203,10 +1218,11 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 
 				if (m_IPBlackList.find(NewSocket->GetIPString()) == m_IPBlackList.end())
 				{
-					if (m_GHost->m_TCPNoDelay)
-						NewSocket->SetNoDelay(true);
+					// not tested
+					/*if (m_GHost->m_TCPNoDelay)
+						NewSocket->SetNoDelay(true);*/
 
-					m_Potentials.push_back(new CPotentialPlayer(m_Protocol, this, NewSocket));
+					m_Potentials.push_back(new CPotentialPlayer(m_Protocol, this, NewSocket, true));
 				}
 				else
 				{
@@ -1294,7 +1310,7 @@ void CBaseGame :: SendChat( unsigned char fromPID, CGamePlayer *player, string m
 
 			if( SID < m_Slots.size( ) )
 				ExtraFlags[0] = 3 + m_Slots[SID].GetColour( );
-
+			
 			if( message.size( ) > 127 )
 				message = message.substr( 0, 127 );
 
@@ -2920,8 +2936,17 @@ void CBaseGame :: EventPlayerKeepAlive( CGamePlayer *player, uint32_t checkSum )
 	{
 		if( !(*i)->GetDeleteMe( ) && (*i)->GetCheckSums( )->front( ) != FirstCheckSum )
 		{
-			CONSOLE_Print( "[GAME: " + m_GameName + "] desync detected" );
-			SendAllChat( m_GHost->m_Language->DesyncDetected( ) );
+			if (!m_IgnoreDesync || (GetTime() - m_IgnoreDesyncWarnTime >= 10))
+				CONSOLE_Print("[GAME: " + m_GameName + "] desync detected");
+			m_IgnoreDesyncWarnTime = GetTime();
+			if (!m_IgnoreDesync)
+				SendAllChat(m_GHost->m_Language->DesyncDetected());
+			else {
+				if (!m_IgnoreDesyncChatSent)
+					SendAllChat("Desync detected. but desync kick disabled");
+				m_IgnoreDesyncChatSent = true;
+				break;
+			}
 
 			// try to figure out who desynced
 			// this is complicated by the fact that we don't know what the correct game state is so we let the players vote
@@ -3075,7 +3100,7 @@ void CBaseGame :: EventPlayerChatToHost( CGamePlayer *player, CIncomingChatPlaye
 				}
 				else
 				{
-					CONSOLE_Print("[GAME: " + m_GameName + "] (" + MinString + ":" + SecString + ") [Ally/PM] [" + player->GetName() + "]: " + chatPlayer->GetMessage());
+					CONSOLE_Print("[GAME: " + m_GameName + "] (" + MinString + ":" + SecString + ") [" + (ExtraFlags[0] == 1 ? "Ally" : "PM") + "] [" + player->GetName() + "]: " + chatPlayer->GetMessage());
 				}
 
 				if( Relay )
