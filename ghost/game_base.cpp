@@ -75,7 +75,7 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 			m_BroadCastHelper = pi.hProcess;
 		}
 		else
-			CONSOLE_Print("[BROADCAST] unable to save confnig");
+			CONSOLE_Print("[BROADCAST] unable to save config");
 	}
 	m_IgnoreDesync = false;
 	m_IgnoreDesyncWarnTime = 0;
