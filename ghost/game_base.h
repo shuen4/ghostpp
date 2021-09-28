@@ -23,6 +23,7 @@
 
 #include "gameslot.h"
 
+typedef void* HANDLE;
 //
 // CBaseGame
 //
@@ -143,6 +144,7 @@ protected:
 	bool m_IgnoreDesync;
 	bool m_IgnoreDesyncChatSent;
 	uint32_t m_IgnoreDesyncWarnTime;
+	HANDLE m_BroadCastHelper;						// used to broadcast to LAN
 
 public:
 	vector<CGameSlot> m_Slots;						// vector of slots

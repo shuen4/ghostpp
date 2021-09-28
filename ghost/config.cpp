@@ -113,3 +113,16 @@ void CConfig :: Set( string key, string x )
 {
 	m_CFG[key] = x;
 }
+
+bool CConfig::Save(string filename) {
+	fstream f;
+	f.open(filename.c_str(), ios::out);
+	if (f.fail()) {
+		CONSOLE_Print("Unable to save file [" + filename + "] - file open failed");
+		return false;
+	}
+	for (map<string, string>::iterator i = m_CFG.begin(); i != m_CFG.end(); i++)
+		f << i->first << " = " << i->second << "\n";
+	f.close();
+	return true;
+}

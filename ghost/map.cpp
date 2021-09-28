@@ -263,7 +263,8 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 	if( !m_MapData.empty( ) )
 	{
 		m_GHost->m_SHA->Reset( );
-
+		if (m_GHost->m_LANWar3Version == 31)
+			m_GHost->m_SHA->Update((unsigned char*)m_MapData.c_str(), m_MapData.size());
 		// calculate map_size
 		
 		MapSize = UTIL_CreateByteArray( (uint32_t)m_MapData.size( ), false );
@@ -324,7 +325,8 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 								CONSOLE_Print( "[MAP] overriding default common.j with map copy while calculating map_crc/sha1" );
 								OverrodeCommonJ = true;
 								Val = Val ^ XORRotateLeft( (unsigned char *)SubFileData, BytesRead );
-								m_GHost->m_SHA->Update( (unsigned char *)SubFileData, BytesRead );
+								if (m_GHost->m_LANWar3Version != 31)
+									m_GHost->m_SHA->Update((unsigned char *)SubFileData, BytesRead);
 							}
 
 							delete [] SubFileData;
@@ -337,7 +339,8 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 				if( !OverrodeCommonJ )
 				{
 					Val = Val ^ XORRotateLeft( (unsigned char *)CommonJ.c_str( ), CommonJ.size( ) );
-					m_GHost->m_SHA->Update( (unsigned char *)CommonJ.c_str( ), CommonJ.size( ) );
+					if (m_GHost->m_LANWar3Version != 31)
+						m_GHost->m_SHA->Update( (unsigned char *)CommonJ.c_str( ), CommonJ.size( ) );
 				}
 
 				if( MapMPQReady )
@@ -360,7 +363,8 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 								CONSOLE_Print( "[MAP] overriding default blizzard.j with map copy while calculating map_crc/sha1" );
 								OverrodeBlizzardJ = true;
 								Val = Val ^ XORRotateLeft( (unsigned char *)SubFileData, BytesRead );
-								m_GHost->m_SHA->Update( (unsigned char *)SubFileData, BytesRead );
+								if (m_GHost->m_LANWar3Version != 31)
+									m_GHost->m_SHA->Update( (unsigned char *)SubFileData, BytesRead );
 							}
 
 							delete [] SubFileData;
@@ -373,12 +377,14 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 				if( !OverrodeBlizzardJ )
 				{
 					Val = Val ^ XORRotateLeft( (unsigned char *)BlizzardJ.c_str( ), BlizzardJ.size( ) );
-					m_GHost->m_SHA->Update( (unsigned char *)BlizzardJ.c_str( ), BlizzardJ.size( ) );
+					if (m_GHost->m_LANWar3Version != 31)
+						m_GHost->m_SHA->Update( (unsigned char *)BlizzardJ.c_str( ), BlizzardJ.size( ) );
 				}
 
 				Val = ROTL( Val, 3 );
 				Val = ROTL( Val ^ 0x03F1379E, 3 );
-				m_GHost->m_SHA->Update( (unsigned char *)"\x9E\x37\xF1\x03", 4 );
+				if (m_GHost->m_LANWar3Version != 31)
+					m_GHost->m_SHA->Update( (unsigned char *)"\x9E\x37\xF1\x03", 4 );
 
 				if( MapMPQReady )
 				{
@@ -419,7 +425,8 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 										FoundScript = true;
 
 									Val = ROTL( Val ^ XORRotateLeft( (unsigned char *)SubFileData, BytesRead ), 3 );
-									m_GHost->m_SHA->Update( (unsigned char *)SubFileData, BytesRead );
+									if (m_GHost->m_LANWar3Version != 31)
+										m_GHost->m_SHA->Update( (unsigned char *)SubFileData, BytesRead );
 									// DEBUG_Print( "*** found: " + *i );
 								}
 
@@ -1013,15 +1020,18 @@ void CMap :: CheckValid( )
 					BYTEARRAY MapCRC;
 					BYTEARRAY MapSHA1;
 					uint32_t Val = 0;
-
-					m_GHost->m_SHA->Reset();
+					if (m_GHost->m_LANWar3Version != 31)
+						m_GHost->m_SHA->Reset();
 					Val = Val ^ XORRotateLeft((unsigned char*)CommonJ.c_str(), CommonJ.size());
-					m_GHost->m_SHA->Update((unsigned char*)CommonJ.c_str(), CommonJ.size());
+					if (m_GHost->m_LANWar3Version != 31)
+						m_GHost->m_SHA->Update((unsigned char*)CommonJ.c_str(), CommonJ.size());
 					Val = Val ^ XORRotateLeft((unsigned char*)BlizzardJ.c_str(), BlizzardJ.size());
-					m_GHost->m_SHA->Update((unsigned char*)BlizzardJ.c_str(), BlizzardJ.size());
+					if (m_GHost->m_LANWar3Version != 31)
+						m_GHost->m_SHA->Update((unsigned char*)BlizzardJ.c_str(), BlizzardJ.size());
 					Val = ROTL(Val, 3);
 					Val = ROTL(Val ^ 0x03F1379E, 3);
-					m_GHost->m_SHA->Update((unsigned char*)"\x9E\x37\xF1\x03", 4);
+					if (m_GHost->m_LANWar3Version != 31)
+						m_GHost->m_SHA->Update((unsigned char*)"\x9E\x37\xF1\x03", 4);
 
 					vector<string> FileList;
 					FileList.push_back("war3map.j");
@@ -1045,19 +1055,34 @@ void CMap :: CheckValid( )
 							else
 								continue;
 						Val = ROTL(Val ^ XORRotateLeft((unsigned char*)filedata.c_str(), filedata.size()), 3);
-						m_GHost->m_SHA->Update((unsigned char*)filedata.c_str(), filedata.size());
+						if (m_GHost->m_LANWar3Version != 31)
+							m_GHost->m_SHA->Update((unsigned char*)filedata.c_str(), filedata.size());
 					}
 					MapCRC = UTIL_CreateByteArray(Val, false);
 					CONSOLE_Print("[MAP] calculated map_crc = " + UTIL_ByteArrayToDecString(MapCRC));
-
-					m_GHost->m_SHA->Final();
-					unsigned char SHA1[20];
-					memset(SHA1, 0, sizeof(unsigned char) * 20);
-					m_GHost->m_SHA->GetHash(SHA1);
-					MapSHA1 = UTIL_CreateByteArray(SHA1, 20);
-					CONSOLE_Print("[MAP] calculated map_sha1 = " + UTIL_ByteArrayToDecString(MapSHA1));
+					if (m_GHost->m_LANWar3Version != 31) {
+						m_GHost->m_SHA->Final();
+						unsigned char SHA1[20];
+						memset(SHA1, 0, sizeof(unsigned char) * 20);
+						m_GHost->m_SHA->GetHash(SHA1);
+						MapSHA1 = UTIL_CreateByteArray(SHA1, 20);
+						CONSOLE_Print("[MAP] calculated map_sha1 = " + UTIL_ByteArrayToDecString(MapSHA1));
+						m_MapSHA1 = MapSHA1;
+					}
+					else if (!m_MapData.empty()) {
+						m_GHost->m_SHA->Reset();
+						m_GHost->m_SHA->Update((unsigned char*)m_MapData.c_str(), m_MapData.size());
+						m_GHost->m_SHA->Final();
+						unsigned char SHA1[20];
+						memset(SHA1, 0, sizeof(unsigned char) * 20);
+						m_GHost->m_SHA->GetHash(SHA1);
+						MapSHA1 = UTIL_CreateByteArray(SHA1, 20);
+						CONSOLE_Print("[MAP] calculated map_sha1 = " + UTIL_ByteArrayToDecString(MapSHA1));
+						m_MapSHA1 = MapSHA1;
+					}
+					else
+						CONSOLE_Print("[MAP] unable to calc map_sha1 - required map file");
 					m_MapCRC = MapCRC;
-					m_MapSHA1 = MapSHA1;
 				}
 			}
 		}

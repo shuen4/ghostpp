@@ -42,9 +42,41 @@
 //
 // CBaseGame
 //
-
 CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer, bool nIsAdminGame) : m_GHost(nGHost), m_SaveGame(nSaveGame), m_Replay(NULL), m_Exiting(false), m_Saving(false), m_HostPort(nHostPort), m_GameState(nGameState), m_VirtualHostPID(255), m_FakePlayerPID(255), m_GProxyEmptyActions(0), m_GameName(nGameName), m_LastGameName(nGameName), m_VirtualHostName(m_GHost->m_VirtualHostName), m_OwnerName(nOwnerName), m_CreatorName(nCreatorName), m_CreatorServer(nCreatorServer), m_HCLCommandString(nMap->GetMapDefaultHCL()), m_RandomSeed(GetTicks()), m_HostCounter(m_GHost->m_HostCounter++), m_EntryKey(rand()), m_Latency(m_GHost->m_Latency), m_SyncLimit(m_GHost->m_SyncLimit), m_SyncCounter(0), m_GameTicks(0), m_CreationTime(GetTime()), m_LastPingTime(GetTime()), m_LastRefreshTime(GetTime()), m_LastDownloadTicks(GetTime()), m_DownloadCounter(0), m_LastDownloadCounterResetTicks(GetTime()), m_LastAnnounceTime(0), m_AnnounceInterval(0), m_LastAutoStartTime(GetTime()), m_AutoStartPlayers(0), m_LastCountDownTicks(0), m_CountDownCounter(0), m_StartedLoadingTicks(0), m_StartPlayers(0), m_LastLagScreenResetTime(0), m_LastActionSentTicks(0), m_LastActionLateBy(0), m_StartedLaggingTime(0), m_LastLagScreenTime(0), m_LastReservedSeen(GetTime()), m_StartedKickVoteTime(0), m_GameOverTime(0), m_LastPlayerLeaveTicks(0), m_MinimumScore(0.), m_MaximumScore(0.), m_SlotInfoChanged(false), m_Locked(false), m_RefreshMessages(m_GHost->m_RefreshMessages), m_RefreshError(false), m_RefreshRehosted(false), m_MuteAll(false), m_MuteLobby(false), m_CountDownStarted(false), m_GameLoading(false), m_GameLoaded(false), m_LoadInGame(nMap->GetMapLoadInGame()), m_Lagging(false), m_AutoSave(m_GHost->m_AutoSave), m_MatchMaking(false), m_LocalAdminMessages(m_GHost->m_LocalAdminMessages), m_DoDelete(0), m_LastReconnectHandleTime(0), m_FakePlayerReplacedSlotData(nMap->GetSlots()[0]), m_FakePlayerReplacedSlot(false), m_IsAdminGame(nIsAdminGame)
 {
+	m_Map = new CMap(*nMap);
+	if (m_GHost->m_LANWar3Version == 31) {
+		CConfig BroadCastData;
+		BroadCastData.Set("game_secret", UTIL_ToString(m_IsAdminGame ? 0 : m_EntryKey));
+		BroadCastData.Set("_type", "1");														// ???
+		BroadCastData.Set("_subtype", "0");														// ???
+		BroadCastData.Set("game_id", UTIL_ToString(m_HostCounter));
+		BroadCastData.Set("_name", m_GameName);
+		BroadCastData.Set("players_max", "24");													// using MAX_SLOTS to allow Warcraft III allocate more PID
+		BroadCastData.Set("_flags", "0");														// ???
+		BroadCastData.Set("players_num", "1");													// show 1/24 in game list
+		BroadCastData.Set("game_create_time", UTIL_ToString(m_CreationTime));
+		BroadCastData.Set("statstring_mapflags", UTIL_ByteArrayToDecString(m_Map->GetMapGameFlags()));
+		// look like we don't need it anyway
+		// BroadCastData.Set("statstring_mapwidth", "0 0");
+		// BroadCastData.Set("statstring_mapheight", "0 0");
+		BroadCastData.Set("statstring_mapcrc", UTIL_ByteArrayToDecString(m_Map->GetMapCRC()));
+		BroadCastData.Set("statstring_mappath", m_Map->GetMapPath());
+		BroadCastData.Set("statstring_hostname", m_GHost->m_VirtualHostName);
+		BroadCastData.Set("statstring_mapsha1", UTIL_ByteArrayToDecString(m_Map->GetMapSHA1()));
+		BroadCastData.Set("port", UTIL_ToString(m_HostPort));
+		if (BroadCastData.Save("broadcast" + UTIL_ToString(m_HostCounter) + ".cfg")) {
+			STARTUPINFOA si;
+			PROCESS_INFORMATION pi;
+			ZeroMemory(&si, sizeof(si));
+			si.cb = sizeof(si);
+			ZeroMemory(&pi, sizeof(pi));
+			CreateProcessA(NULL, (LPSTR)("BroadcastHelper.exe broadcast" + UTIL_ToString(m_HostCounter) + ".cfg").c_str(), NULL, NULL, false, 0, NULL, NULL, &si, &pi);
+			m_BroadCastHelper = pi.hProcess;
+		}
+		else
+			CONSOLE_Print("[BROADCAST] unable to save confnig");
+	}
 	m_IgnoreDesync = false;
 	m_IgnoreDesyncWarnTime = 0;
 	m_IgnoreDesyncChatSent = false;
@@ -59,7 +91,6 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 	if (m_GHost->m_GameRanger && !m_IsAdminGame)
 		m_Socket1 = new CTCPServer();
 	m_Protocol = new CGameProtocol(m_GHost);
-	m_Map = new CMap(*nMap);
 
 	if (m_GHost->m_SaveReplays && !m_SaveGame)
 		m_Replay = new CReplay();
@@ -169,6 +200,12 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 
 CBaseGame :: ~CBaseGame( )
 {
+	if (m_GHost->m_LANWar3Version == 31 && m_BroadCastHelper) {
+		TerminateProcess(m_BroadCastHelper, 0);
+		CloseHandle(m_BroadCastHelper);
+		remove(("broadcast" + UTIL_ToString(m_HostCounter) + ".cfg").c_str());
+		m_BroadCastHelper = NULL;
+	}
 	delete m_Socket;
 	if (m_GHost->m_GameRanger && !m_IsAdminGame)
 		delete m_Socket1;
@@ -3193,8 +3230,15 @@ void CBaseGame :: EventPlayerChatToHost( CGamePlayer *player, CIncomingChatPlaye
 			}
 			else if (m_RelayMessage == 2)
 				SendAllChat(chatPlayer->GetFromPID(), chatPlayer->GetMessage(), false);
-			else if( Relay )
-				Send( chatPlayer->GetToPIDs( ), m_Protocol->SEND_W3GS_CHAT_FROM_HOST( chatPlayer->GetFromPID( ), chatPlayer->GetToPIDs( ), chatPlayer->GetFlag( ), chatPlayer->GetExtraFlags( ), chatPlayer->GetMessage( ) ) );
+			else if (m_GHost->m_LANWar3Version == 31 && !m_GameLoading && !m_GameLoaded && m_GHost->m_CommandTrigger == '!' && chatPlayer->GetToPIDs().size() == 1 && chatPlayer->GetToPIDs()[0] == 255) {
+				BYTEARRAY ToPIDs;
+				ToPIDs.push_back(player->GetPID());
+				Send(player, m_Protocol->SEND_W3GS_CHAT_FROM_HOST(chatPlayer->GetFromPID(), ToPIDs, chatPlayer->GetFlag(), chatPlayer->GetExtraFlags(), chatPlayer->GetMessage()));
+				if (Relay)
+					SendAllExcept(player, m_Protocol->SEND_W3GS_CHAT_FROM_HOST(chatPlayer->GetFromPID(), GetPIDs(), chatPlayer->GetFlag(), chatPlayer->GetExtraFlags(), chatPlayer->GetMessage()));
+			}
+			else if (Relay)
+				Send(chatPlayer->GetToPIDs(), m_Protocol->SEND_W3GS_CHAT_FROM_HOST(chatPlayer->GetFromPID(), chatPlayer->GetToPIDs(), chatPlayer->GetFlag(), chatPlayer->GetExtraFlags(), chatPlayer->GetMessage()));
 		}
 		else if( chatPlayer->GetType( ) == CIncomingChatPlayer :: CTH_TEAMCHANGE && !m_CountDownStarted )
 			EventPlayerChangeTeam( player, chatPlayer->GetByte( ) );
@@ -3611,6 +3655,14 @@ void CBaseGame :: EventGameStarted( )
 	if (m_GHost->m_GameRanger && !m_IsAdminGame) {
 		delete m_Socket1;
 		m_Socket1 = NULL;
+	}
+
+	// Terminate the broadcast helper
+	if (m_GHost->m_LANWar3Version == 31 && m_BroadCastHelper) {
+		TerminateProcess(m_BroadCastHelper, 0);
+		CloseHandle(m_BroadCastHelper);
+		remove(("broadcast" + UTIL_ToString(m_HostCounter) + ".cfg").c_str());
+		m_BroadCastHelper = NULL;
 	}
 
 	// delete any potential players that are still hanging around

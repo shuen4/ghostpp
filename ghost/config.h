@@ -39,6 +39,7 @@ public:
 	uint32_t GetUInt32( string key, uint32_t x );
 	string GetString( string key, string x );
 	void Set( string key, string x );
+	bool Save(string filename);
 };
 
 #endif
