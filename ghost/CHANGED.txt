@@ -15,8 +15,9 @@ admin.txt			<- give player name admin permission in all realm(file end with "\n"
 localip.txt			<- able to use all command (file end with "\n")
 
 other:
-support 1.31 game version (require broadcasthelper for local player)
-version change to compile date & time
+support new game protocol (require broadcasthelper for local player & tested only with 1.31.1.12164)
+war3map.w3i format 28 support
+version display compile date & time
 8MB patch for 1.24 <= version <1.28
 fix if observer enabled and map have unusable slot war3 will leave lobby
 fix if map is fixed player settings can't change SLOTRACE_RANDOM to others
