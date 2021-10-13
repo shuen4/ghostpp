@@ -45,12 +45,13 @@
 CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t nHostPort, unsigned char nGameState, string nGameName, string nOwnerName, string nBackupOwnerName, string nCreatorName, string nCreatorServer, bool nIsAdminGame) : m_GHost(nGHost), m_SaveGame(nSaveGame), m_Replay(NULL), m_Exiting(false), m_Saving(false), m_HostPort(nHostPort), m_GameState(nGameState), m_VirtualHostPID(255), m_FakePlayerPID(255), m_GProxyEmptyActions(0), m_GameName(nGameName), m_LastGameName(nGameName), m_VirtualHostName(m_GHost->m_VirtualHostName), m_OwnerName(nOwnerName), m_CreatorName(nCreatorName), m_CreatorServer(nCreatorServer), m_HCLCommandString(nMap->GetMapDefaultHCL()), m_RandomSeed(GetTicks()), m_HostCounter(m_GHost->m_HostCounter++), m_EntryKey(rand()), m_Latency(m_GHost->m_Latency), m_SyncLimit(m_GHost->m_SyncLimit), m_SyncCounter(0), m_GameTicks(0), m_CreationTime(GetTime()), m_LastPingTime(GetTime()), m_LastRefreshTime(GetTime()), m_LastDownloadTicks(GetTime()), m_DownloadCounter(0), m_LastDownloadCounterResetTicks(GetTime()), m_LastAnnounceTime(0), m_AnnounceInterval(0), m_LastAutoStartTime(GetTime()), m_AutoStartPlayers(0), m_LastCountDownTicks(0), m_CountDownCounter(0), m_StartedLoadingTicks(0), m_StartPlayers(0), m_LastLagScreenResetTime(0), m_LastActionSentTicks(0), m_LastActionLateBy(0), m_StartedLaggingTime(0), m_LastLagScreenTime(0), m_LastReservedSeen(GetTime()), m_StartedKickVoteTime(0), m_GameOverTime(0), m_LastPlayerLeaveTicks(0), m_MinimumScore(0.), m_MaximumScore(0.), m_SlotInfoChanged(false), m_Locked(false), m_RefreshMessages(m_GHost->m_RefreshMessages), m_RefreshError(false), m_RefreshRehosted(false), m_MuteAll(false), m_MuteLobby(false), m_CountDownStarted(false), m_GameLoading(false), m_GameLoaded(false), m_LoadInGame(nMap->GetMapLoadInGame()), m_Lagging(false), m_AutoSave(m_GHost->m_AutoSave), m_MatchMaking(false), m_LocalAdminMessages(m_GHost->m_LocalAdminMessages), m_DoDelete(0), m_LastReconnectHandleTime(0), m_FakePlayerReplacedSlotData(nMap->GetSlots()[0]), m_FakePlayerReplacedSlot(false), m_IsAdminGame(nIsAdminGame)
 {
 	m_Map = new CMap(*nMap);
+	m_LastBroadCastTime = 0xFFFFFFFF;
 	if (m_GHost->m_LANWar3Version == 31) {
 		CConfig BroadCastData;
 		BroadCastData.Set("game_secret", UTIL_ToString(m_IsAdminGame ? 0 : m_EntryKey));
 		BroadCastData.Set("_type", "1");														// ???
 		BroadCastData.Set("_subtype", "0");														// ???
-		BroadCastData.Set("game_id", UTIL_ToString(m_HostCounter));
+		BroadCastData.Set("game_id", UTIL_ToString(m_HostCounter & 0x0FFFFFFF));
 		BroadCastData.Set("_name", m_GameName);
 		BroadCastData.Set("players_max", "24");													// using MAX_SLOTS to allow Warcraft III allocate more PID
 		BroadCastData.Set("_flags", "0");														// ???
@@ -65,17 +66,21 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 		BroadCastData.Set("statstring_hostname", m_GHost->m_VirtualHostName);
 		BroadCastData.Set("statstring_mapsha1", UTIL_ByteArrayToDecString(m_Map->GetMapSHA1()));
 		BroadCastData.Set("port", UTIL_ToString(m_HostPort));
-		if (BroadCastData.Save("broadcast" + UTIL_ToString(m_HostCounter) + ".cfg")) {
+		if (BroadCastData.Save("broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg")) {
 			STARTUPINFOA si;
 			PROCESS_INFORMATION pi;
 			ZeroMemory(&si, sizeof(si));
 			si.cb = sizeof(si);
 			ZeroMemory(&pi, sizeof(pi));
-			CreateProcessA(NULL, (LPSTR)("BroadcastHelper.exe broadcast" + UTIL_ToString(m_HostCounter) + ".cfg").c_str(), NULL, NULL, false, 0, NULL, NULL, &si, &pi);
-			m_BroadCastHelper = pi.hProcess;
+			if (CreateProcessA(NULL, (LPSTR)("BroadcastHelper.exe broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg").c_str(), NULL, NULL, false, 0, NULL, NULL, &si, &pi)) {
+				m_BroadCastHelper = pi.hProcess;
+				m_LastBroadCastTime = GetTime();
+			}
+			else
+				CONSOLE_Print("[GAME: " + m_GameName + "] failed to start broadcast helper - broadcast stopped");
 		}
 		else
-			CONSOLE_Print("[BROADCAST] unable to save config");
+			CONSOLE_Print("[GAME: " + m_GameName + "] unable to save broadcast config - broadcast stopped");
 	}
 	m_IgnoreDesync = false;
 	m_IgnoreDesyncWarnTime = 0;
@@ -200,11 +205,12 @@ CBaseGame::CBaseGame(CGHost* nGHost, CMap* nMap, CSaveGame* nSaveGame, uint16_t 
 
 CBaseGame :: ~CBaseGame( )
 {
-	if (m_GHost->m_LANWar3Version == 31 && m_BroadCastHelper) {
+	if (m_LastBroadCastTime != 0xFFFFFFFF) {
 		TerminateProcess(m_BroadCastHelper, 0);
 		CloseHandle(m_BroadCastHelper);
-		remove(("broadcast" + UTIL_ToString(m_HostCounter) + ".cfg").c_str());
+		remove(("broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg").c_str());
 		m_BroadCastHelper = NULL;
+		m_LastBroadCastTime = 0xFFFFFFFF;
 	}
 	delete m_Socket;
 	if (m_GHost->m_GameRanger && !m_IsAdminGame)
@@ -616,6 +622,28 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 					m_GHost->m_UDPSocket->Broadcast(6112, m_Protocol->SEND_W3GS_GAMEINFO(m_GHost->m_TFT, m_GHost->m_LANWar3Version, UTIL_CreateByteArray(MapGameType, false), m_Map->GetMapGameFlags(), MapWidth, MapHeight, m_GameName, m_GHost->m_VirtualHostName, GetTime() - m_CreationTime, m_Map->GetMapPath(), m_Map->GetMapCRC(), MAX_SLOTS, MAX_SLOTS, m_GHost->m_GameRanger ? m_GHost->m_GameRangerHostPort : m_HostPort, FixedHostCounter, m_EntryKey));
 				}
 			}
+			// restart the broadcast helper (ensure gamelist always in game menu)
+			if (m_LastBroadCastTime != 0xFFFFFFFF && GetTime() - m_LastBroadCastTime >= 10) {
+				DWORD code = 0;
+				GetExitCodeProcess(m_BroadCastHelper,&code);
+				if (code == STILL_ACTIVE) {
+					TerminateProcess(m_BroadCastHelper, 0);
+					CloseHandle(m_BroadCastHelper);
+					STARTUPINFOA si;
+					PROCESS_INFORMATION pi;
+					ZeroMemory(&si, sizeof(si));
+					si.cb = sizeof(si);
+					ZeroMemory(&pi, sizeof(pi));
+					CreateProcessA(NULL, (LPSTR)("BroadcastHelper.exe broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg").c_str(), NULL, NULL, false, 0, NULL, NULL, &si, &pi);
+					m_BroadCastHelper = pi.hProcess;
+					m_LastBroadCastTime = GetTime();
+				}
+				else {
+					CONSOLE_Print("[GAME: " + m_GameName + "] broadcast helper process exited abnormaly - broadcast stopped");
+					m_BroadCastHelper = NULL;
+					m_LastBroadCastTime = 0xFFFFFFFF;
+				}
+			}
 		}
 	}
 
@@ -630,13 +658,58 @@ bool CBaseGame::Update(void* fd, void* send_fd)
 		string GameName = m_GHost->m_AutoHostGameName + " #" + UTIL_ToString( m_GHost->m_HostCounter );
 		CONSOLE_Print( "[GAME: " + m_GameName + "] automatically trying to rehost as public game [" + GameName + "] due to refresh failure" );
 
-		//need to synchronize here because we're using host counter variable from GHost
+		// need to synchronize here because we're using host counter variable from GHost
 		// and also gamenames are used in some functions accessed externally
 		boost::mutex::scoped_lock lock( m_GHost->m_GamesMutex );
 
 		m_LastGameName = m_GameName;
 		m_GameName = GameName;
+		// Terminate the broadcast helper
+		if (m_LastBroadCastTime != 0xFFFFFFFF) {
+			TerminateProcess(m_BroadCastHelper, 0);
+			CloseHandle(m_BroadCastHelper);
+			remove(("broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg").c_str());
+			m_BroadCastHelper = NULL;
+			m_LastBroadCastTime = 0xFFFFFFFF;
+		}
 		m_HostCounter = m_GHost->m_HostCounter++;
+		// and start again
+		if (m_GHost->m_LANWar3Version == 31) {
+			CConfig BroadCastData;
+			BroadCastData.Set("game_secret", UTIL_ToString(m_IsAdminGame ? 0 : m_EntryKey));
+			BroadCastData.Set("_type", "1");														// ???
+			BroadCastData.Set("_subtype", "0");														// ???
+			BroadCastData.Set("game_id", UTIL_ToString(m_HostCounter & 0x0FFFFFFF));
+			BroadCastData.Set("_name", m_GameName);
+			BroadCastData.Set("players_max", "24");													// using MAX_SLOTS to allow Warcraft III allocate more PID
+			BroadCastData.Set("_flags", "0");														// ???
+			BroadCastData.Set("players_num", "1");													// show 1/24 in game list
+			BroadCastData.Set("game_create_time", UTIL_ToString(m_CreationTime));
+			BroadCastData.Set("statstring_mapflags", UTIL_ByteArrayToDecString(m_Map->GetMapGameFlags()));
+			// look like we don't need it anyway
+			// BroadCastData.Set("statstring_mapwidth", "0 0");
+			// BroadCastData.Set("statstring_mapheight", "0 0");
+			BroadCastData.Set("statstring_mapcrc", UTIL_ByteArrayToDecString(m_Map->GetMapCRC()));
+			BroadCastData.Set("statstring_mappath", m_Map->GetMapPath());
+			BroadCastData.Set("statstring_hostname", m_GHost->m_VirtualHostName);
+			BroadCastData.Set("statstring_mapsha1", UTIL_ByteArrayToDecString(m_Map->GetMapSHA1()));
+			BroadCastData.Set("port", UTIL_ToString(m_HostPort));
+			if (BroadCastData.Save("broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg")) {
+				STARTUPINFOA si;
+				PROCESS_INFORMATION pi;
+				ZeroMemory(&si, sizeof(si));
+				si.cb = sizeof(si);
+				ZeroMemory(&pi, sizeof(pi));
+				if (CreateProcessA(NULL, (LPSTR)("BroadcastHelper.exe broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg").c_str(), NULL, NULL, false, 0, NULL, NULL, &si, &pi)) {
+					m_BroadCastHelper = pi.hProcess;
+					m_LastBroadCastTime = GetTime();
+				}
+				else
+					CONSOLE_Print("[GAME: " + m_GameName + "] failed to start broadcast helper - broadcast stopped");
+			}
+			else
+				CONSOLE_Print("[GAME: " + m_GameName + "] unable to save broadcast config - broadcast stopped");
+		}
 		m_RefreshError = false;
 
 		for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
@@ -1911,16 +1984,32 @@ void CBaseGame :: EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinP
 
 	// check if the new player's name is the same as the virtual host name
 
-	/*if( joinPlayer->GetName( ) == m_VirtualHostName )
+	if( joinPlayer->GetName( ) == m_VirtualHostName )
 	{
 		CONSOLE_Print( "[GAME: " + m_GameName + "] player [" + joinPlayer->GetName( ) + "|" + potential->GetExternalIPString( ) + "] is trying to join the game with the virtual host name" );
 		potential->Send( m_Protocol->SEND_W3GS_REJECTJOIN( REJECTJOIN_FULL ) );
 		potential->SetDeleteMe( true );
 		return;
-	}*/
+	}
 	bool AdminCheck = false;
+
 	// check if the new player's name is already taken
-	if( GetPlayerFromName( joinPlayer->GetName( ), false ) && potential->GetExternalIPString() != "127.0.0.1" && potential->GetExternalIPString() != "192.168.56.1" && potential->GetExternalIPString() != "192.168.2.2")
+	bool b = false;
+	string ip = potential->GetExternalIPString();
+	string tmp;
+	ifstream file("localip.txt");
+	if (!file.fail()) {
+		while (getline(file, tmp))
+			if (tmp.empty())
+				continue;
+			else if (ip == tmp) {
+				file.close();
+				b = true;
+				break;
+			}
+		file.close();
+	}
+	if (GetPlayerFromName(joinPlayer->GetName(), false) && !b)
 	{
 		CONSOLE_Print( "[GAME: " + m_GameName + "] player [" + joinPlayer->GetName( ) + "|" + potential->GetExternalIPString( ) + "] is trying to join the game but that name is already taken" );
 		//SendAllChat( m_GHost->m_Language->TryingToJoinTheGameButTaken( joinPlayer->GetName( ) ) );
@@ -2209,8 +2298,6 @@ void CBaseGame :: EventPlayerJoined( CPotentialPlayer *potential, CIncomingJoinP
 	// we also have to be careful to not modify the m_Potentials vector since we're currently looping through it
 
 	string name = joinPlayer->GetName();
-	//if (name == "u431105825")
-	//	name = "sotzaii_shuen";
 	if (JoinedRealm.empty())
 		JoinedRealm = "LAN";
 
@@ -2392,17 +2479,31 @@ void CBaseGame::EventPlayerJoinedWithScore(CPotentialPlayer* potential, CIncomin
 
 	// check if the new player's name is the same as the virtual host name
 
-	/*if (joinPlayer->GetName() == m_VirtualHostName)
+	if (joinPlayer->GetName() == m_VirtualHostName)
 	{
 		CONSOLE_Print("[GAME: " + m_GameName + "] player [" + joinPlayer->GetName() + "|" + potential->GetExternalIPString() + "] is trying to join the game with the virtual host name");
 		potential->Send(m_Protocol->SEND_W3GS_REJECTJOIN(REJECTJOIN_FULL));
 		potential->SetDeleteMe(true);
 		return;
-	}*/
+	}
 
 	// check if the new player's name is already taken
-
-	if (GetPlayerFromName(joinPlayer->GetName(), false) && potential->GetExternalIPString() != "127.0.0.1" && potential->GetExternalIPString() != "192.168.56.1" && potential->GetExternalIPString() != "192.168.2.2")
+	bool b = false;
+	string ip = potential->GetExternalIPString();
+	string tmp;
+	ifstream file("localip.txt");
+	if (!file.fail()) {
+		while (getline(file, tmp))
+			if (tmp.empty())
+				continue;
+			else if (ip == tmp) {
+				file.close();
+				b = true;
+				break;
+			}
+		file.close();
+	}
+	if (GetPlayerFromName(joinPlayer->GetName(), false) && !b)
 	{
 		CONSOLE_Print("[GAME: " + m_GameName + "] player [" + joinPlayer->GetName() + "|" + potential->GetExternalIPString() + "] is trying to join the game but that name is already taken");
 		//SendAllChat( m_GHost->m_Language->TryingToJoinTheGameButTaken( joinPlayer->GetName( ) ) );
@@ -2648,8 +2749,7 @@ void CBaseGame::EventPlayerJoinedWithScore(CPotentialPlayer* potential, CIncomin
 	// we also have to be careful to not modify the m_Potentials vector since we're currently looping through it
 
 	string name = joinPlayer->GetName();
-	//if (name == "u431105825")
-	//	name = "sotzaii_shuen";
+
 	if (JoinedRealm.empty())
 		JoinedRealm = "LAN";
 
@@ -2973,7 +3073,7 @@ void CBaseGame :: EventPlayerKeepAlive( CGamePlayer *player, uint32_t checkSum )
 	{
 		if( !(*i)->GetDeleteMe( ) && (*i)->GetCheckSums( )->front( ) != FirstCheckSum )
 		{
-			if (!m_IgnoreDesync || (GetTime() - m_IgnoreDesyncWarnTime >= 10))
+			if (!m_IgnoreDesync || !m_IgnoreDesyncChatSent)
 				CONSOLE_Print("[GAME: " + m_GameName + "] desync detected");
 			m_IgnoreDesyncWarnTime = GetTime();
 			if (!m_IgnoreDesync)
@@ -3658,11 +3758,12 @@ void CBaseGame :: EventGameStarted( )
 	}
 
 	// Terminate the broadcast helper
-	if (m_GHost->m_LANWar3Version == 31 && m_BroadCastHelper) {
+	if (m_LastBroadCastTime != 0xFFFFFFFF) {
 		TerminateProcess(m_BroadCastHelper, 0);
 		CloseHandle(m_BroadCastHelper);
-		remove(("broadcast" + UTIL_ToString(m_HostCounter) + ".cfg").c_str());
+		remove(("broadcast" + UTIL_ToString(m_HostCounter & 0x0FFFFFFF) + ".cfg").c_str());
 		m_BroadCastHelper = NULL;
+		m_LastBroadCastTime = 0xFFFFFFFF;
 	}
 
 	// delete any potential players that are still hanging around

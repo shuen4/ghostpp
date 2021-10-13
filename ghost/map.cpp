@@ -502,12 +502,18 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 						uint32_t RawMapNumPlayers;
 						uint32_t RawMapNumTeams;
 
-						ISS.read( (char *)&FileFormat, 4 );				// file format (18 = ROC, 25 = TFT)
+						ISS.read( (char *)&FileFormat, 4 );				// file format (18 = ROC, 25 = TFT, 28 = ???)
 
-						if( FileFormat == 18 || FileFormat == 25 )
+						if( FileFormat == 18 || FileFormat == 25 || FileFormat == 28 )
 						{
 							ISS.seekg( 4, ios :: cur );					// number of saves
 							ISS.seekg( 4, ios :: cur );					// editor version
+							if (FileFormat == 28) {
+								ISS.seekg(4, ios::cur);					// 1st patch number
+								ISS.seekg(4, ios::cur);					// 2nd patch number
+								ISS.seekg(4, ios::cur);					// 3rd patch number
+								ISS.seekg(4, ios::cur);					// 4th patch number
+							}
 							getline( ISS, GarbageString, '\0' );		// map name
 							getline( ISS, GarbageString, '\0' );		// map author
 							getline( ISS, GarbageString, '\0' );		// map description
@@ -521,7 +527,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 
 							if( FileFormat == 18 )
 								ISS.seekg( 4, ios :: cur );				// campaign background number
-							else if( FileFormat == 25 )
+							else if( FileFormat == 25 || FileFormat == 28 )
 							{
 								ISS.seekg( 4, ios :: cur );				// loading screen background number
 								getline( ISS, GarbageString, '\0' );	// path of custom loading screen model
@@ -533,7 +539,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 
 							if( FileFormat == 18 )
 								ISS.seekg( 4, ios :: cur );				// map loading screen number
-							else if( FileFormat == 25 )
+							else if( FileFormat == 25 || FileFormat == 28 )
 							{
 								ISS.seekg( 4, ios :: cur );				// used game data set
 								getline( ISS, GarbageString, '\0' );	// prologue screen path
@@ -543,7 +549,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 							getline( ISS, GarbageString, '\0' );		// prologue screen title
 							getline( ISS, GarbageString, '\0' );		// prologue screen subtitle
 
-							if( FileFormat == 25 )
+							if( FileFormat == 25 || FileFormat == 28 )
 							{
 								ISS.seekg( 4, ios :: cur );				// uses terrain fog
 								ISS.seekg( 4, ios :: cur );				// fog start z height
@@ -561,6 +567,8 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 								ISS.seekg( 1, ios :: cur );				// custom water tinting blue value
 								ISS.seekg( 1, ios :: cur );				// custom water tinting alpha value
 							}
+							if (FileFormat == 28)
+								ISS.seekg(4, ios::cur);					// ???
 
 							ISS.read( (char *)&RawMapNumPlayers, 4 );	// number of players
 
@@ -1116,12 +1124,18 @@ void CMap :: CheckValid( )
 			uint32_t RawMapNumTeams;
 			uint32_t HiddenSlots = 0;
 
-			ISS.read((char*)&FileFormat, 4);				// file format (18 = ROC, 25 = TFT)
+			ISS.read((char*)&FileFormat, 4);				// file format (18 = ROC, 25 = TFT, 28 = ???)
 
-			if (FileFormat == 18 || FileFormat == 25)
+			if (FileFormat == 18 || FileFormat == 25 || FileFormat == 28)
 			{
 				ISS.seekg(4, ios::cur);					// number of saves
 				ISS.seekg(4, ios::cur);					// editor version
+				if (FileFormat == 28) {
+					ISS.seekg(4, ios::cur);					// 1st patch number
+					ISS.seekg(4, ios::cur);					// 2nd patch number
+					ISS.seekg(4, ios::cur);					// 3rd patch number
+					ISS.seekg(4, ios::cur);					// 4th patch number
+				}
 				getline(ISS, GarbageString, '\0');		// map name
 				getline(ISS, GarbageString, '\0');		// map author
 				getline(ISS, GarbageString, '\0');		// map description
@@ -1135,7 +1149,7 @@ void CMap :: CheckValid( )
 
 				if (FileFormat == 18)
 					ISS.seekg(4, ios::cur);				// campaign background number
-				else if (FileFormat == 25)
+				else if (FileFormat == 25 || FileFormat == 28)
 				{
 					ISS.seekg(4, ios::cur);				// loading screen background number
 					getline(ISS, GarbageString, '\0');	// path of custom loading screen model
@@ -1147,7 +1161,7 @@ void CMap :: CheckValid( )
 
 				if (FileFormat == 18)
 					ISS.seekg(4, ios::cur);				// map loading screen number
-				else if (FileFormat == 25)
+				else if (FileFormat == 25 || FileFormat == 28)
 				{
 					ISS.seekg(4, ios::cur);				// used game data set
 					getline(ISS, GarbageString, '\0');	// prologue screen path
@@ -1157,7 +1171,7 @@ void CMap :: CheckValid( )
 				getline(ISS, GarbageString, '\0');		// prologue screen title
 				getline(ISS, GarbageString, '\0');		// prologue screen subtitle
 
-				if (FileFormat == 25)
+				if (FileFormat == 25 || FileFormat == 28)
 				{
 					ISS.seekg(4, ios::cur);				// uses terrain fog
 					ISS.seekg(4, ios::cur);				// fog start z height
@@ -1175,6 +1189,8 @@ void CMap :: CheckValid( )
 					ISS.seekg(1, ios::cur);				// custom water tinting blue value
 					ISS.seekg(1, ios::cur);				// custom water tinting alpha value
 				}
+				if (FileFormat == 28)
+					ISS.seekg(4, ios::cur);					// ???
 
 				ISS.read((char*)&RawMapNumPlayers, 4);	// number of players
 

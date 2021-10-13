@@ -144,7 +144,8 @@ protected:
 	bool m_IgnoreDesync;
 	bool m_IgnoreDesyncChatSent;
 	uint32_t m_IgnoreDesyncWarnTime;
-	HANDLE m_BroadCastHelper;						// used to broadcast to LAN
+	HANDLE m_BroadCastHelper;						// used to broadcast to LAN on version 1.31
+	uint32_t m_LastBroadCastTime;					// 0xFFFFFFFF mean disabled
 
 public:
 	vector<CGameSlot> m_Slots;						// vector of slots

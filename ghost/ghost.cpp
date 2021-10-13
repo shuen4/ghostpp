@@ -857,12 +857,12 @@ bool CGHost :: Update( long usecBlock )
 			m_CurrentGame = NULL;
 		}
 
-		if( m_AdminGame )
+		/*if( m_AdminGame )
 		{
 			CONSOLE_Print( "[GHOST] deleting admin game in preparation for exiting nicely" );
 			m_AdminGame->doDelete( );
 			m_AdminGame = NULL;
-		}
+		}*/
 
 		if( m_Games.empty( ) )
 		{
@@ -1402,9 +1402,9 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	m_IPBlackListFile = CFG->GetString( "bot_ipblacklistfile", "ipblacklist.txt" );
 	m_LobbyTimeLimit = CFG->GetInt( "bot_lobbytimelimit", 10 );
 	m_Latency = CFG->GetInt( "bot_latency", 100 );
-	if (m_GameRanger && m_Latency < 99)
+	if (m_GameRanger && m_Latency < 50)
 		// bandwidth limit
-		m_Latency = 100;
+		m_Latency = 50;
 	m_SyncLimit = CFG->GetInt( "bot_synclimit", 50 );
 	m_VoteKickAllowed = CFG->GetInt( "bot_votekickallowed", 1 ) == 0 ? false : true;
 	m_VoteKickPercentage = CFG->GetInt( "bot_votekickpercentage", 100 );

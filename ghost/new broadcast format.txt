@@ -1,0 +1,55 @@
+main data:
+	0A														unknown
+	gamename length											game name length
+	gamename												game name
+	10 00													unknown
+	each data:
+		1A													unknown
+		name length + value length + 4						remaining length
+		01													unknown (when total length > ? or special data type)
+		0A													unkwown
+		name length											value name length
+		name												value name
+		12													unknown
+		value length										remaining length
+		01													unknown (when total length > ? or special data type)
+		value												value string
+
+data info:
+	new_name				old_name					value type
+	game_secret				entry key					decimal string
+	_type					MapGameType ?				decimal string
+	_subtype				layout style ?				decimal string
+	game_id					host counter				decimal string
+	_name					game name					string
+	players_max				GHost++ use MAX_SLOTS		decimal string
+	_flags					unknown						decimal string
+	players_num				GHost++ use 1				decimal string
+	game_create_time		m_CreationTime				decimal string
+	game_data	(special)								base64encoded string
+
+game_data:
+	base64 encode:
+		01 00 00 00										unknown (MAPGAMETYPE_UNKNOWN0 etc ?)
+		encoded stat string								stat string
+		00												stat string null terminate
+		18 00 00 00										game total slots (GHost++ use MAX_SLOTS)
+		gamename										game name
+		00												unknown (gamename null terminate?)
+		00												unknown
+		E0 17											host port
+		
+encoded stat string:
+	stat string encode:
+		mapflags
+		00
+		mapwidth
+		mapheight
+		mapcrc
+		mappath
+		00
+		hostame
+		00
+		00
+		mapsha1											full map data sha1 instead of old sha1 algorithm value
+														(can fill with 20 zeros so game use sha1 of W3GS_MAPCHECK)

@@ -382,7 +382,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 		RootAdminCheck = true;
 	bool IsRealAdmin = (AdminCheck || RootAdminCheck || IsOwner(User));
 	bool IsRealAdmin1 = (RootAdminCheck || IsOwner(User));
-	if (((player->GetSpoofed() ) && (AdminCheck || RootAdminCheck || IsOwner(User) ))|| m_Admin )
+	if (((player->GetSpoofed()) && (AdminCheck || RootAdminCheck || IsOwner(User))) || m_Admin)
 	{
 		CONSOLE_Print("[GAME: " + m_GameName + "] admin [" + User + "] sent command [" + Command + "] with payload [" + Payload + "]");
 
@@ -723,6 +723,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 			//
 			// !CHECKALL
 			//
+
 			else if (Command == "checkall") {
 				for (vector<CGamePlayer*> ::iterator i = m_Players.begin(); i != m_Players.end(); ++i)
 				{
@@ -738,6 +739,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					SendAllChat(m_GHost->m_Language->CheckedPlayer((*i)->GetName(), (*i)->GetNumPings() > 0 ? UTIL_ToString((*i)->GetPing(m_GHost->m_LCPings)) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck(UTIL_ByteArrayToUInt32((*i)->GetExternalIP(), true))+"("+(*i)->GetExternalIPString()+")", IsAdmin || IsRAdmin? "Yes" : "No", IsOwner((*i)->GetName()) ? "Yes" : "No", (*i)->GetSpoofed() ? "Yes" : "No", (*i)->GetSpoofedRealm().empty() ? "N/A" : (*i)->GetSpoofedRealm(), (*i)->GetReserved() ? "Yes" : "No"));
 				}
 			}
+
 			//
 			// !CHECKBAN
 			//
@@ -747,25 +749,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				for( vector<CBNET *> :: iterator i = m_GHost->m_BNETs.begin( ); i != m_GHost->m_BNETs.end( ); ++i )
 					m_PairedBanChecks.push_back( PairedBanCheck( User, m_GHost->m_DB->ThreadedBanCheck( (*i)->GetServer( ), Payload, string( ) ) ) );
 			}
-			//
-			// !CLEAR
-			//
-			else if (Command == "clear") {
-				if (Payload == "all")
-					if (!m_GameLoading && !m_GameLoaded)
-						for (int i = 0; i < 8; i++)
-							SendAllChat(GetHostPID(), " ", false);
-					else
-						for (int i = 0; i < 32; i++)
-							SendAllChat(GetHostPID(), " ", false);
-				else
-					if (!m_GameLoading && !m_GameLoaded)
-						for (int i = 0; i < 8; i++)
-							SendChat(player, " ");
-					else
-						for (int i = 0; i < 32; i++)
-							SendChat(player, " ");
-			}
+
 			//
 			// !CLEARHCL
 			//
@@ -1360,9 +1344,9 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						if (m_Players[i]->FromGameRanger())
 							GameRanger = true;
 
-					if (m_Latency <= 100 && GameRanger) {
-						m_Latency = 100;
-						SendAllChat(m_GHost->m_Language->SettingLatencyToMinimum("100"));
+					if (m_Latency <= 50 && GameRanger) {
+						m_Latency = 50;
+						SendAllChat(m_GHost->m_Language->SettingLatencyToMinimum("50"));
 					}
 					else if (m_Latency <= 20)
 					{
@@ -2219,6 +2203,26 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 		SendChat( player, m_GHost->m_Language->CheckedPlayer( User, player->GetNumPings( ) > 0 ? UTIL_ToString( player->GetPing( m_GHost->m_LCPings ) ) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( player->GetExternalIP( ), true ) ), AdminCheck || RootAdminCheck ? "Yes" : "No", IsOwner( User ) ? "Yes" : "No", player->GetSpoofed( ) ? "Yes" : "No", player->GetSpoofedRealm( ).empty( ) ? "N/A" : player->GetSpoofedRealm( ), player->GetReserved( ) ? "Yes" : "No" ) );
 
 	//
+	// !CLEAR
+	//
+	else if (Command == "clear") {
+		if (Payload == "all" && IsRealAdmin1)
+			if (!m_GameLoading && !m_GameLoaded)
+				for (int i = 0; i < 8; i++)
+					SendAllChat(GetHostPID(), " ", false);
+			else
+				for (int i = 0; i < 32; i++)
+					SendAllChat(GetHostPID(), " ", false);
+		else
+			if (!m_GameLoading && !m_GameLoaded)
+				for (int i = 0; i < 8; i++)
+					SendChat(player, " ");
+			else
+				for (int i = 0; i < 32; i++)
+					SendChat(player, " ");
+	}
+
+	//
 	// !PING
 	//
 
@@ -2230,7 +2234,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 		uint32_t Kicked = 0;
 		uint32_t KickPing = 0;
 
-		if (!m_GameLoading && !m_GameLoaded && !Payload.empty() && (RootAdminCheck || IsOwner(User)))
+		if (!m_GameLoading && !m_GameLoaded && !Payload.empty() && IsRealAdmin1)
 			KickPing = UTIL_ToUInt32(Payload);
 
 		// copy the m_Players vector so we can sort by descending ping so it's easier to find players with high pings
