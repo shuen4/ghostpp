@@ -268,6 +268,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 		// calculate map_size
 		
 		MapSize = UTIL_CreateByteArray( (uint32_t)m_MapData.size( ), false );
+		m_RealMapSize = MapSize;
 		if (m_GHost->m_LANWar3Version > char(23) && m_GHost->m_LANWar3Version < char(28))
 			if ((uint32_t)m_MapData.size() > 8388000) {
 				MapSize = UTIL_CreateByteArray((uint32_t)8388000, false);
@@ -568,7 +569,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 								ISS.seekg( 1, ios :: cur );				// custom water tinting alpha value
 							}
 							if (FileFormat == 28)
-								ISS.seekg(4, ios::cur);					// ???
+								ISS.seekg(4, ios::cur);					// 0 = JASS , 1 = LUA
 
 							ISS.read( (char *)&RawMapNumPlayers, 4 );	// number of players
 
@@ -631,7 +632,7 @@ void CMap :: Load( CConfig *CFG, string nCFGFile )
 								ISS.read( (char *)&Flags, 4 );			// flags
 								ISS.read( (char *)&PlayerMask, 4 );		// player mask
 
-								for( unsigned char j = 0; j < (m_GHost->m_LANWar3Version <= char(28) ? 12 : 24); ++j )
+								for( unsigned char j = 0; j < MAX_SLOTS; ++j )
 								{
 									if( PlayerMask & 1 )
 									{
@@ -897,13 +898,25 @@ void CMap :: CheckValid( )
 	// use local pre extracted files if auto extract failed
 	bool calcfromlocal = false;
 	// todotodo: should this code fix any errors it sees rather than just warning the user?
-	if( m_MapPath.empty( ) || m_MapPath.length( ) > 53 )
+	if (m_MapPath.empty() || m_MapPath.length() > 53)
 	{
-		m_Valid = false;
-		CONSOLE_Print( "[MAP] invalid map_path detected" );
+		if (!m_MapPath.empty()) {
+			char s1[4096];
+			char s2[4096];
+			_splitpath(m_MapPath.c_str(), NULL, NULL, s1, s2);
+			std::string s3 = "Maps\\";
+			s3 += s1;
+			s3 += s2;
+			if (s3.length() < 54)
+				m_MapPath = s3;
+		}
+		if (m_MapPath.empty() || m_MapPath.length() > 53) {
+			m_Valid = false;
+			CONSOLE_Print("[MAP] invalid map_path detected");
+		}
 	}
-	else if( m_MapPath[0] == '\\' )
-		CONSOLE_Print( "[MAP] warning - map_path starts with '\\', any replays saved by GHost++ will not be playable in Warcraft III" );
+	else if (m_MapPath[0] == '\\')
+		CONSOLE_Print("[MAP] warning - map_path starts with '\\', any replays saved by GHost++ will not be playable in Warcraft III");
 
 	if( m_MapPath.find( '/' ) != string :: npos )
 		CONSOLE_Print( "[MAP] warning - map_path contains forward slashes '/' but it must use Windows style back slashes '\\'" );
@@ -1341,8 +1354,20 @@ void CMap :: CheckValid( )
 			CONSOLE_Print("[MAP] unable to calculate map_crc/sha1 - " + filename + " not found");
 	if (m_MapPath.empty() || m_MapPath.length() > 53)
 	{
-		m_Valid = false;
-		CONSOLE_Print("[MAP] invalid map_path detected");
+		if (!m_MapPath.empty()) {
+			char s1[4096];
+			char s2[4096];
+			_splitpath(m_MapPath.c_str(), NULL, NULL, s1, s2);
+			std::string s3 = "Maps\\";
+			s3 += s1;
+			s3 += s2;
+			if (s3.length() < 54)
+				m_MapPath = s3;
+		}
+		if (m_MapPath.empty() || m_MapPath.length() > 53) {
+			m_Valid = false;
+			CONSOLE_Print("[MAP] invalid map_path detected");
+		}
 	}
 	else if (m_MapPath[0] == '\\')
 		CONSOLE_Print("[MAP] warning - map_path starts with '\\', any replays saved by GHost++ will not be playable in Warcraft III");

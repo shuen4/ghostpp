@@ -939,12 +939,14 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 				else
 				{
 					SendChat(player, m_GHost->m_Language->UnhostingGame(m_GHost->m_CurrentGame->GetDescription()));
-					m_GHost->m_CurrentGame->SetExiting(true);
+					//m_GHost->m_CurrentGame->SetExiting(true);
+					m_GHost->m_CurrentGame->doDelete();
+					m_GHost->m_CurrentGame = NULL;
 					m_GHost->m_LastAutoHostTime = GetTime();
 				}
 			}
-			SendChat(player, "Waiting 100ms delay for create game.");
-			Sleep(100);
+			//SendChat(player, "Waiting 100ms delay for create game.");
+			//Sleep(100);
 			m_GHost->CreateGame(m_GHost->m_Map, GAME_PRIVATE, true, m_GHost->m_AutoHostGameName, m_GHost->m_AutoHostOwner, m_GHost->m_AutoHostBackupOwner, m_GHost->m_AutoHostOwner, string(), false);
 			SendChat(player, "Done.");
 			SendChat(player, " ");
@@ -1395,4 +1397,5 @@ bool CAdminGame :: EventPlayerBotCommand( CGamePlayer *player, string command, s
 	return true;
 
 }
+// never process this so player wont get kicked due to map file issue
 void CAdminGame::EventPlayerMapSize(CGamePlayer* player, CIncomingMapSize* mapSize) {}

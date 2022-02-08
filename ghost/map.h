@@ -99,6 +99,7 @@ private:
 	string m_CFGFile;
 	string m_MapPath;							// config value: map path
 	BYTEARRAY m_MapSize;						// config value: map size (4 bytes)
+	BYTEARRAY m_RealMapSize;					// config value: map size (4 bytes)
 	BYTEARRAY m_MapInfo;						// config value: map info (4 bytes) -> this is the real CRC
 	BYTEARRAY m_MapCRC;							// config value: map crc (4 bytes) -> this is not the real CRC, it's the "xoro" value
 	BYTEARRAY m_MapSHA1;						// config value: map sha1 (20 bytes)
@@ -134,6 +135,7 @@ public:
 	string GetCFGFile( )					{ return m_CFGFile; }
 	string GetMapPath( )					{ return m_MapPath; }
 	BYTEARRAY GetMapSize( )					{ return m_MapSize; }
+	BYTEARRAY GetRealMapSize()				{ return m_RealMapSize; }
 	BYTEARRAY GetMapInfo( )					{ return m_MapInfo; }
 	BYTEARRAY GetMapCRC( )					{ return m_MapCRC; }
 	BYTEARRAY GetMapSHA1( )					{ return m_MapSHA1; }

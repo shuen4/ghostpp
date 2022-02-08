@@ -129,6 +129,7 @@ private:
 	uint32_t m_GProxyReconnectKey;
 	uint32_t m_LastGProxyAckTime;
 	bool m_SaveGameNoticeSent;
+	uint32_t m_DownloadSpeed;
 
 public:
 	CGamePlayer( CGameProtocol *nProtocol, CBaseGame *nGame, CTCPSocket *nSocket, unsigned char nPID, string nJoinedRealm, string nName, BYTEARRAY nInternalIP, bool nReserved );
@@ -176,6 +177,7 @@ public:
 	bool GetGProxy( )							{ return m_GProxy; }
 	bool GetGProxyDisconnectNoticeSent( )		{ return m_GProxyDisconnectNoticeSent; }
 	uint32_t GetGProxyReconnectKey( )			{ return m_GProxyReconnectKey; }
+	uint32_t GetDownloadSpeed()					{ return m_DownloadSpeed; }
 
 	void SetLeftReason( string nLeftReason )										{ m_LeftReason = nLeftReason; }
 	void SetSpoofedRealm( string nSpoofedRealm )									{ m_SpoofedRealm = nSpoofedRealm; }
@@ -204,6 +206,7 @@ public:
 	void SetMuted( bool nMuted )													{ m_Muted = nMuted; }
 	void SetLeftMessageSent( bool nLeftMessageSent )								{ m_LeftMessageSent = nLeftMessageSent; }
 	void SetGProxyDisconnectNoticeSent( bool nGProxyDisconnectNoticeSent )			{ m_GProxyDisconnectNoticeSent = nGProxyDisconnectNoticeSent; }
+	void SetDownloadSpeed(uint32_t nDownloadSpeed)									{ m_DownloadSpeed = nDownloadSpeed; }
 
 	string GetNameTerminated( );
 	uint32_t GetPing( bool LCPing );

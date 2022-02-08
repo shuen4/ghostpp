@@ -129,7 +129,7 @@ public:
 	string CurrentlyLoadedMapCFGIs( string mapcfg );
 	string LaggedOutDroppedByAdmin( );
 	string LaggedOutDroppedByVote( );
-	string PlayerVotedToDropLaggers( string user );
+	string PlayerVotedToDropLaggers(string user, string current, string need);
 	string LatencyIs( string latency );
 	string SyncLimitIs( string synclimit );
 	string SettingSyncLimitToMinimum( string min );

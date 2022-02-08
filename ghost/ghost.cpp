@@ -444,6 +444,7 @@ int main(int argc, char** argv)
 
 CGHost :: CGHost( CConfig *CFG )
 {
+	m_GameThreadsCount = 0;
 	m_GameRanger = CFG->GetInt("gameranger", 0) == 0 ? false : true;
 	if (GetModuleHandleA("GameRanger.dll") != NULL)
 		m_GameRanger = true;
@@ -451,6 +452,7 @@ CGHost :: CGHost( CConfig *CFG )
 	m_UDPSocket = new CUDPSocket( );
 	m_UDPSocket->SetBroadcastTarget( CFG->GetString( "udp_broadcasttarget", string( ) ) );
 	m_UDPSocket->SetDontRoute( CFG->GetInt( "udp_dontroute", 0 ) == 0 ? false : true );
+	m_GameOverTimer = CFG->GetInt("bot_gameovertimer", 1) == 0 ? false : true;
 	m_ReconnectSocket = NULL;
 	m_GPSProtocol = new CGPSProtocol( );
 	m_CRC = new CCRC32( );
@@ -775,6 +777,19 @@ CGHost :: ~CGHost( )
 	for( vector<CBaseGame *> :: iterator i = m_Games.begin( ); i != m_Games.end( ); ++i )
 		(*i)->doDelete();
 
+	// check game thread saved data and ready to exit
+	CONSOLE_Print("[GHOST] waiting for " + UTIL_ToString(m_GameThreadsCount) + " game threads to finish");
+	while (true) {
+		m_GameThreadsMutex.lock();
+		if (m_GameThreadsCount == 0) {
+			m_GameThreadsMutex.unlock();
+			break;
+		}
+		m_GameThreadsMutex.unlock();
+		MILLISLEEP(50);
+	}
+	CONSOLE_Print("[GHOST] all game threads to finished, exiting");
+
 	delete m_DB;
 	delete m_DBLocal;
 
@@ -1011,11 +1026,13 @@ bool CGHost :: Update( long usecBlock )
 
 	// update battle.net connections
 
+	m_BNETsMutex.lock();
 	for( vector<CBNET *> :: iterator i = m_BNETs.begin( ); i != m_BNETs.end( ); ++i )
 	{
 		if( (*i)->Update( &fd, &send_fd ) )
 			BNETExit = true;
 	}
+	m_BNETsMutex.unlock();
 
 	// update GProxy++ reliable reconnect sockets
 
@@ -1081,6 +1098,7 @@ bool CGHost :: Update( long usecBlock )
 						{
 							(*i)->PutBytes( m_GPSProtocol->SEND_GPSS_REJECT( REJECTGPS_INVALID ) );
 							(*i)->DoSend( &send_fd );
+							(*i)->shutdown();
 							delete *i;
 							i = m_ReconnectSockets.erase( i );
 							continue;
@@ -1091,6 +1109,7 @@ bool CGHost :: Update( long usecBlock )
 				{
 					(*i)->PutBytes( m_GPSProtocol->SEND_GPSS_REJECT( REJECTGPS_INVALID ) );
 					(*i)->DoSend( &send_fd );
+					(*i)->shutdown();
 					delete *i;
 					i = m_ReconnectSockets.erase( i );
 					continue;
@@ -1100,6 +1119,7 @@ bool CGHost :: Update( long usecBlock )
 			{
 				(*i)->PutBytes( m_GPSProtocol->SEND_GPSS_REJECT( REJECTGPS_INVALID ) );
 				(*i)->DoSend( &send_fd );
+				(*i)->shutdown();
 				delete *i;
 				i = m_ReconnectSockets.erase( i );
 				continue;
@@ -1118,8 +1138,10 @@ bool CGHost :: Update( long usecBlock )
 		{
 			if( GetTicks( ) - (*i)->PostedTime > 1500 )
 			{
+				(*i)->socket->SetFD(&fd, &send_fd, &nfds); // or DoSend() won't work
 				(*i)->socket->PutBytes( m_GPSProtocol->SEND_GPSS_REJECT( REJECTGPS_NOTFOUND ) );
 				(*i)->socket->DoSend( &send_fd );
+				(*i)->socket->shutdown();
 				delete (*i)->socket;
 				delete (*i);
 				i = m_PendingReconnects.erase( i );
@@ -1134,7 +1156,7 @@ bool CGHost :: Update( long usecBlock )
 
 	// autohost
 
-	if( !m_AutoHostGameName.empty( ) && m_AutoHostMaximumGames != 0 && GetTime( ) - m_LastAutoHostTime >= 5 )
+	if( !m_AutoHostGameName.empty( ) && m_AutoHostMaximumGames != 0 && /*m_AutoHostAutoStartPlayers != 0 && */GetTime( ) - m_LastAutoHostTime >= 5 )
 	{
 		// copy all the checks from CGHost :: CreateGame here because we don't want to spam the chat when there's an error
 		// instead we fail silently and try again soon
@@ -1151,6 +1173,7 @@ bool CGHost :: Update( long usecBlock )
 
 					if( m_CurrentGame )
 					{
+						m_CurrentGame->SetAutoStartPlayers(m_AutoHostAutoStartPlayers);
 						if (m_FakePlayer) {
 							m_CurrentGame->SetFakePlayer(true);
 							m_CurrentGame->SetFakePlayerName(m_FakePlayerName);
@@ -1218,7 +1241,6 @@ bool CGHost :: Update( long usecBlock )
 
 		m_LastAutoHostTime = GetTime( );
 	}
-
 	return m_Exiting || AdminExit || BNETExit;
 }
 
@@ -1413,6 +1435,14 @@ void CGHost :: SetConfigs( CConfig *CFG )
 	{
 		m_VoteKickPercentage = 100;
 		CONSOLE_Print( "[GHOST] warning - bot_votekickpercentage is greater than 100, using 100 instead" );
+	}
+
+	m_DropPlayerPercentage = CFG->GetInt("bot_dropplayerpercentage", 49);
+
+	if (m_DropPlayerPercentage > 100)
+	{
+		m_DropPlayerPercentage = 100;
+		CONSOLE_Print("[GHOST] warning - bot_dropplayerpercentage is greater than 100, using 100 instead");
 	}
 
 	m_MOTDFile = CFG->GetString( "bot_motdfile", "motd.txt" );
@@ -1632,7 +1662,7 @@ void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, st
 
 		if( MapPath1 != MapPath2 )
 		{
-			if (m_LANWar3Version != 30) {
+			if (m_LANWar3Version < 30) {
 				CONSOLE_Print("[GHOST] path mismatch, saved game path is [" + MapPath1 + "] but map path is [" + MapPath2 + "]");
 
 				for (vector<CBNET*> ::iterator i = m_BNETs.begin(); i != m_BNETs.end(); ++i)
@@ -1772,7 +1802,7 @@ void CGHost :: CreateGame( CMap *map, unsigned char gameState, bool saveGame, st
 		if( (*i)->GetHoldClan( ) )
 			(*i)->HoldClan( m_CurrentGame );
 	}
-	m_CurrentGame->SetAutoStartPlayers(0);
+	
 	// start the game thread
 	boost::thread(&CBaseGame::loop, m_CurrentGame);
 	CONSOLE_Print("[GameThread] Made new game thread");

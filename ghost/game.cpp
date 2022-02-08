@@ -429,7 +429,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				SendAllChat("Added user [" + p->GetName() + "] to the admin database");
 			}
 			//
-			// !DELADMIN
+			// !DELLASTADMIN
 			//
 			else if ((Command == "dellastadmin" || Command == "dla") && player->IsLocalPlayer()) {
 				ifstream file("admin.txt");
@@ -494,6 +494,24 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 				f << buf;
 				f.close();
 				SendAllChat("Deleted user [" + Payload + "] from the admin database");
+			}
+			//
+			// !BNET_EXIT
+			// !BEXIT
+			//
+			else if ((Command == "bnet_exit" || Command == "bexit") && !Payload.empty() && player->IsLocalPlayer()) {
+				m_GHost->m_BNETsMutex.lock();
+				int i = m_GHost->m_BNETs.size();
+				for (int i = 0; i < m_GHost->m_BNETs.size(); i++)
+					if (m_GHost->m_BNETs[i]->GetServer() == Payload || m_GHost->m_BNETs[i]->GetServerAlias() == Payload || m_GHost->m_BNETs[i]->GetPVPGNRealmName() == Payload) {
+						SendAllChat("bnet [" + m_GHost->m_BNETs[i]->GetServer() + "] exiting");
+						delete m_GHost->m_BNETs[i];
+						m_GHost->m_BNETs.erase(m_GHost->m_BNETs.begin() + i);
+						i--;
+					}
+				if (i == m_GHost->m_BNETs.size())
+					SendAllChat("bnet [" + Payload + "] not found");
+				m_GHost->m_BNETsMutex.unlock();
 			}
 			//
 			// !ABORT (abort countdown)
@@ -1321,7 +1339,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						LastMatch->SetLeftCode( PLAYERLEAVE_LOST );
 
 					if( !m_GameLoading && !m_GameLoaded )
-						OpenSlot( GetSIDFromPID( LastMatch->GetPID( ) ), false );
+						OpenSlot( GetSIDFromPID( LastMatch->GetPID( ) ), true );
 				}
 				else
 					SendAllChat( m_GHost->m_Language->UnableToKickFoundMoreThanOneMatch( Payload ) );
@@ -1796,38 +1814,27 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 						SendAllChat( m_GHost->m_Language->CountDownAbortedSomeoneLeftRecently( ) );
 				}
 			}
-			else if ((Command == "setspoofchecked" || Command == "ssc") && RootAdminCheck) {
+			//
+			// !SSC
+			// !SWAPSPOOFCHECK
+			//
+			else if ((Command == "swapspoofcheck" || Command == "ssc") && RootAdminCheck) {
 				CGamePlayer* Target = NULL;
 				uint32_t Count = 1;
 				string Name;
 				stringstream SS;
 				SS << Payload;
 				SS >> Name;
-				if (SS.eof()) {
-					Target = GetPlayerFromName(Name, true);
-					if (Target == NULL)
-						Count = GetPlayerFromNamePartial(Name, &Target);
-					if (Target == NULL)
-						SendAllChat("No matches found");
-					else if (Count > 1)
-						SendAllChat("Found more than one match");
-					else {
-						Target->SetSpoofed(true);
-						SendAllChat("sc status changed to: true");
-					}
-				}
+				Target = GetPlayerFromName(Name, true);
+				if (Target == NULL)
+					Count = GetPlayerFromNamePartial(Name, &Target);
+				if (Target == NULL)
+					SendAllChat("No matches found");
+				else if (Count > 1)
+					SendAllChat("Found more than one match");
 				else {
-					Target = GetPlayerFromName(Name, true);
-					if (Target == NULL)
-						Count = GetPlayerFromNamePartial(Name, &Target);
-					if (Target == NULL)
-						SendAllChat("No matches found");
-					else if (Count > 1)
-						SendAllChat("Found more than one match");
-					else {
-						Target->SetSpoofed(false);
-						SendAllChat("sc status changed to: false");
-					}
+					Target->SetSpoofed(!Target->GetSpoofed());
+					SendAllChat("sc status changed to: " + Target->GetSpoofed() ? "true" : "false");
 				}
 			}
 			//
@@ -2199,8 +2206,8 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 	// !CHECKME
 	//
 
-	if( Command == "checkme" )
-		SendChat( player, m_GHost->m_Language->CheckedPlayer( User, player->GetNumPings( ) > 0 ? UTIL_ToString( player->GetPing( m_GHost->m_LCPings ) ) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck( UTIL_ByteArrayToUInt32( player->GetExternalIP( ), true ) ), AdminCheck || RootAdminCheck ? "Yes" : "No", IsOwner( User ) ? "Yes" : "No", player->GetSpoofed( ) ? "Yes" : "No", player->GetSpoofedRealm( ).empty( ) ? "N/A" : player->GetSpoofedRealm( ), player->GetReserved( ) ? "Yes" : "No" ) );
+	if (Command == "checkme")
+		SendChat(player, m_GHost->m_Language->CheckedPlayer(User, player->GetNumPings() > 0 ? UTIL_ToString(player->GetPing(m_GHost->m_LCPings)) + "ms" : "N/A", m_GHost->m_DBLocal->FromCheck(UTIL_ByteArrayToUInt32(player->GetExternalIP(), true)), AdminCheck || RootAdminCheck ? "Yes" : "No", IsOwner(User) ? "Yes" : "No", player->GetSpoofed() ? "Yes" : "No", player->GetSpoofedRealm().empty() ? "N/A" : player->GetSpoofedRealm(), player->GetReserved() ? "Yes" : "No"));
 
 	//
 	// !CLEAR
@@ -2222,11 +2229,49 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					SendChat(player, " ");
 	}
 
+	// !DS
+	// !DOWNLOADSPEED
+	//
+	else if ((Command == "downloadspeed" || Command == "ds") && !Payload.empty() && !m_GameLoading && !m_GameLoaded && !player->GetDownloadFinished()) {
+		uint32_t downloadspeed;
+		stringstream SS;
+		SS << Payload;
+		SS >> downloadspeed;
+		if (SS.fail())
+			SendAllChat("invalid input");
+		else {
+			if (player->IsLocalPlayer()) {}
+			else if (player->FromGameRanger())
+				if (downloadspeed > 100)
+					downloadspeed = 100;
+				else {}
+			else if (IsRealAdmin1)
+				if (downloadspeed > 2000)
+					downloadspeed = 2000;
+				else {}
+			else if (IsRealAdmin)
+				if (downloadspeed > 1000)
+					downloadspeed = 1000;
+				else {}
+			else if (downloadspeed > 500)
+				downloadspeed = 500;
+			SendAllChat("Setting [" + player->GetName() + "] maximum download speed to " + UTIL_ToString(downloadspeed));
+			player->SetDownloadSpeed(downloadspeed);
+		}
+	}
+	// !FD
+	// !FORCEDOWNLOAD
+	//
+	else if ((Command == "fd" || Command == "forcedownload") && !m_GameLoading && !m_GameLoaded && m_Map->GetMapSize() != m_Map->GetRealMapSize() && !IsGameDllPatchPlayer(player->GetName()) && m_Slots[GetSIDFromPID(player->GetPID())].GetDownloadStatus() == 0) {
+		AddGameDllPatchPlayer(player->GetName());
+		player->SetLeftReason("want to download map");
+		OpenSlot(GetSIDFromPID(player->GetPID()), true);
+	}
 	//
 	// !PING
 	//
 
-	else if (Command == "ping" || Command == "p")
+	else if ((Command == "ping" || Command == "p") && (IsRealAdmin1 || !m_Locked))
 	{
 		// kick players with ping higher than payload if payload isn't empty
 		// we only do this if the game hasn't started since we don't want to kick players from a game in progress
@@ -2257,7 +2302,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					(*i)->SetDeleteMe(true);
 					(*i)->SetLeftReason("was kicked for excessive ping " + UTIL_ToString((*i)->GetPing(m_GHost->m_LCPings)) + " > " + UTIL_ToString(KickPing));
 					(*i)->SetLeftCode(PLAYERLEAVE_LOBBY);
-					OpenSlot(GetSIDFromPID((*i)->GetPID()), false);
+					OpenSlot(GetSIDFromPID((*i)->GetPID()), true);
 					Kicked++;
 				}
 
@@ -2407,7 +2452,7 @@ bool CGame :: EventPlayerBotCommand( CGamePlayer *player, string command, string
 					Victim->SetLeftCode( PLAYERLEAVE_LOST );
 
 				if( !m_GameLoading && !m_GameLoaded )
-					OpenSlot( GetSIDFromPID( Victim->GetPID( ) ), false );
+					OpenSlot( GetSIDFromPID( Victim->GetPID( ) ), true );
 
 				CONSOLE_Print( "[GAME: " + m_GameName + "] votekick against player [" + m_KickVotePlayer + "] passed with " + UTIL_ToString( Votes ) + "/" + UTIL_ToString( GetNumHumanPlayers( ) ) + " votes" );
 				SendAllChat( m_GHost->m_Language->VoteKickPassed( m_KickVotePlayer ) );

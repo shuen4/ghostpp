@@ -146,6 +146,7 @@ protected:
 	uint32_t m_IgnoreDesyncWarnTime;
 	HANDLE m_BroadCastHelper;						// used to broadcast to LAN on version 1.31
 	uint32_t m_LastBroadCastTime;					// 0xFFFFFFFF mean disabled
+	vector<string> m_GameDllPatchPlayer;
 
 public:
 	vector<CGameSlot> m_Slots;						// vector of slots
@@ -227,7 +228,7 @@ public:
 	virtual void SendChat( unsigned char fromPID, unsigned char toPID, string message );
 	virtual void SendChat( CGamePlayer *player, string message );
 	virtual void SendChat( unsigned char toPID, string message );
-	virtual void SendAllChat(unsigned char fromPID, string message, bool log = true);
+	virtual void SendAllChat(unsigned char fromPID, string message, bool log = true, bool AddToReplay = true);
 	virtual void SendAllChat( string message );
 	virtual void SendLocalAdminChat( string message );
 	virtual void SendAllSlotInfo( );
@@ -310,6 +311,9 @@ public:
 	virtual void DeleteVirtualHost( );
 	virtual void CreateFakePlayer( );
 	virtual void DeleteFakePlayer( );
+	virtual bool IsGameDllPatchPlayer(string name);
+	virtual void AddGameDllPatchPlayer(string name);
+	virtual void DeleteGameDllPatchPlayer(string name);
 };
 
 struct QueuedSpoofAdd {

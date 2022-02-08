@@ -326,7 +326,7 @@ void CTCPSocket :: DoSend( fd_set *send_fd )
 void CTCPSocket :: Disconnect( )
 {
 	if( m_Socket != INVALID_SOCKET )
-		shutdown( m_Socket, SHUT_RDWR );
+		::shutdown( m_Socket, SHUT_RDWR );
 
 	m_Connected = false;
 }
@@ -650,14 +650,14 @@ bool CUDPSocket :: SendTo( string address, uint16_t port, BYTEARRAY message )
 	return SendTo( sin, message );
 }
 
-bool CUDPSocket :: Broadcast( uint16_t port, BYTEARRAY message )
+bool CUDPSocket::Broadcast(uint16_t port, BYTEARRAY message, unsigned long target)
 {
 	if( m_Socket == INVALID_SOCKET || m_HasError )
 		return false;
 
 	struct sockaddr_in sin;
 	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = m_BroadcastTarget.s_addr;
+	sin.sin_addr.s_addr = target;
 	sin.sin_port = htons( port );
 
 	string MessageString = string( message.begin( ), message.end( ) );
@@ -855,6 +855,29 @@ void CUDPServer :: RecvFrom( fd_set *fd, struct sockaddr_in *sin, string *messag
 			m_HasError = true;
 			m_Error = GetLastError( );
 			CONSOLE_Print( "[UDPSERVER] error (recvfrom) - " + GetErrorString( ) );
+		}
+	}
+}
+
+void CTCPSocket::shutdown()
+{
+	if (m_Socket != INVALID_SOCKET) {
+		::shutdown(m_Socket, SD_SEND);
+		int i = 1;
+		int ret = 0;
+		char buffer[65535];
+		while (true) {
+			ret = recv(m_Socket, buffer, sizeof(buffer), 0);
+			if (ret == 0)
+				break;
+			else if (ret > 0) {}
+			else if (GetLastError() == EWOULDBLOCK)
+				if (i++ == 100)
+					break;
+				else
+					MILLISLEEP(10);
+			else
+				break;
 		}
 	}
 }

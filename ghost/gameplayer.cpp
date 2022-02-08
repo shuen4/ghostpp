@@ -188,7 +188,7 @@ CGamePlayer :: CGamePlayer( CGameProtocol *nProtocol, CBaseGame *nGame, CTCPSock
 m_PID( nPID ), m_Name( nName ), m_InternalIP( nInternalIP ), m_JoinedRealm( nJoinedRealm ), m_TotalPacketsSent( 0 ), m_TotalPacketsReceived( 0 ), m_LeftCode( PLAYERLEAVE_LOBBY ), m_LoginAttempts( 0 ), m_SyncCounter( 0 ), m_JoinTime( GetTime( ) ),
 m_LastMapPartSent( 0 ), m_LastMapPartAcked( 0 ), m_StartedDownloadingTicks( 0 ), m_FinishedLoadingTicks( 0 ), m_StartedLaggingTicks( 0 ), m_StatsSentTime( 0 ), m_StatsDotASentTime( 0 ), m_LastGProxyWaitNoticeSentTime( 0 ), m_Score( -100000.0 ),
 m_LoggedIn( false ), m_Spoofed( false ), m_Reserved( nReserved ), m_WhoisShouldBeSent( false ), m_WhoisSent( false ), m_DownloadAllowed( false ), m_DownloadStarted( false ), m_DownloadFinished( false ), m_FinishedLoading( false ), m_Lagging( false ),
-m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 ), m_SaveGameNoticeSent(false)
+m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 ), m_SaveGameNoticeSent(false), m_DownloadSpeed(m_FromGameRanger ? 50 : 100)
 {
 
 }
@@ -197,7 +197,7 @@ CGamePlayer :: CGamePlayer( CPotentialPlayer *potential, unsigned char nPID, str
 m_PID( nPID ), m_Name( nName ), m_InternalIP( nInternalIP ), m_JoinedRealm( nJoinedRealm ), m_TotalPacketsSent( 0 ), m_TotalPacketsReceived( 1 ), m_LeftCode( PLAYERLEAVE_LOBBY ), m_LoginAttempts( 0 ), m_SyncCounter( 0 ), m_JoinTime( GetTime( ) ),
 m_LastMapPartSent( 0 ), m_LastMapPartAcked( 0 ), m_StartedDownloadingTicks( 0 ), m_FinishedLoadingTicks( 0 ), m_StartedLaggingTicks( 0 ), m_StatsSentTime( 0 ), m_StatsDotASentTime( 0 ), m_LastGProxyWaitNoticeSentTime( 0 ), m_Score( -100000.0 ),
 m_LoggedIn( false ), m_Spoofed( false ), m_Reserved( nReserved ), m_WhoisShouldBeSent( false ), m_WhoisSent( false ), m_DownloadAllowed( false ), m_DownloadStarted( false ), m_DownloadFinished( false ), m_FinishedLoading( false ), m_Lagging( false ),
-m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 ), m_SaveGameNoticeSent(false)
+m_DropVote( false ), m_KickVote( false ), m_Muted( false ), m_LeftMessageSent( false ), m_GProxy( false ), m_GProxyDisconnectNoticeSent( false ), m_GProxyReconnectKey( rand( ) ), m_LastGProxyAckTime( 0 ), m_SaveGameNoticeSent(false), m_DownloadSpeed(m_FromGameRanger ? 50 : 100)
 {
 	// todotodo: properly copy queued packets to the new player, this just discards them
 	// this isn't a big problem because official Warcraft III clients don't send any packets after the join request until they receive a response
@@ -278,7 +278,7 @@ bool CGamePlayer::Update(void* fd)
 
 		m_WhoisSent = true;
 	}
-	if (!m_SaveGameNoticeSent && m_GProxy && GetTime() - m_JoinTime >= 5) {
+	if (!m_SaveGameNoticeSent && m_GProxy && GetTime() - m_JoinTime >= 10) {
 		if (m_Game->GetSaveGame())
 			m_Game->SendChat(m_PID, "This is a saved game. if the slot is abnormal, please leave and rejoin after game refresh or restart GProxy++.");
 		else
@@ -523,7 +523,7 @@ void CGamePlayer :: ProcessPackets( )
 				{
 					m_GProxy = true;
 					m_Socket->PutBytes( m_Game->m_GHost->m_GPSProtocol->SEND_GPSS_INIT( m_Game->m_GHost->m_ReconnectPort, m_PID, m_GProxyReconnectKey, m_Game->GetGProxyEmptyActions( ) ) );
-					CONSOLE_Print( "[GAME: " + m_Game->GetGameName( ) + "] player [" + m_Name + "] is using GProxy++" );
+					//CONSOLE_Print( "[GAME: " + m_Game->GetGameName( ) + "] player [" + m_Name + "] is using GProxy++" );
 					m_Game->SendAllChat("Player [" + m_Name + "] is using GProxy++");
 				}
 				else

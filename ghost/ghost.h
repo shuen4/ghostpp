@@ -50,7 +50,6 @@ struct GProxyReconnector {
 	uint32_t LastPacket;
 	uint32_t PostedTime;
 };
-
 class CGHost
 {
 public:
@@ -60,11 +59,11 @@ public:
 	CGPSProtocol *m_GPSProtocol;
 	CCRC32 *m_CRC;							// for calculating CRC's
 	CSHA1 *m_SHA;							// for calculating SHA1's
+	boost::mutex m_BNETsMutex;
 	vector<CBNET *> m_BNETs;				// all our battle.net connections (there can be more than one)
 	CBaseGame *m_CurrentGame;				// this game is still in the lobby state
 	CAdminGame *m_AdminGame;				// this "fake game" allows an admin who knows the password to control the bot from the local network
 	vector<CBaseGame *> m_Games;			// these games are in progress
-	boost::thread_group m_GameThreads;		// the threads for games in progress and stuff
 	boost::mutex m_GamesMutex;
 	CGHostDB *m_DB;							// database
 	CGHostDB *m_DBLocal;					// local database (for temporary data)
@@ -133,6 +132,7 @@ public:
 	uint32_t m_SyncLimit;					// config value: the maximum number of packets a player can fall out of sync before starting the lag screen (by default)
 	bool m_VoteKickAllowed;					// config value: if votekicks are allowed or not
 	uint32_t m_VoteKickPercentage;			// config value: percentage of players required to vote yes for a votekick to pass
+	uint32_t m_DropPlayerPercentage;		// config value: percentage of players required to vote for a drop lagger to pass
 	string m_DefaultMap;					// config value: default map (map.cfg)
 	string m_MOTDFile;						// config value: motd.txt
 	string m_GameLoadedFile;				// config value: gameloaded.txt
@@ -152,6 +152,9 @@ public:
 	boost::mutex m_ReconnectMutex;
 	bool m_GameRanger;						// config value: GameRanger compatible mode
 	uint16_t m_GameRangerHostPort;			// config value: GameRanger compatible mode host port
+	boost::mutex m_GameThreadsMutex;
+	uint32_t m_GameThreadsCount;
+	bool m_GameOverTimer;
 
 	CGHost( CConfig *CFG );
 	~CGHost( );

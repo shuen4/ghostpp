@@ -160,6 +160,7 @@ public:
 	virtual void Disconnect( );
 	virtual void SetNoDelay( bool noDelay );
 	virtual void SetLogFile( string nLogFile )	{ m_LogFile = nLogFile; }
+	virtual void shutdown();
 };
 
 //
@@ -211,9 +212,10 @@ public:
 
 	virtual bool SendTo( struct sockaddr_in sin, BYTEARRAY message );
 	virtual bool SendTo( string address, uint16_t port, BYTEARRAY message );
-	virtual bool Broadcast( uint16_t port, BYTEARRAY message );
+	virtual bool Broadcast(uint16_t port, BYTEARRAY message, unsigned long target);
 	virtual bool BroadcastNoHook(uint16_t port, BYTEARRAY message);
 	virtual void SetBroadcastTarget( string subnet );
+	virtual unsigned long GetBroadcastTarget() 									{ return m_BroadcastTarget.s_addr; }
 	virtual void SetDontRoute( bool dontRoute );
 };
 

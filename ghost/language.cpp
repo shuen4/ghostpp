@@ -720,10 +720,12 @@ string CLanguage :: LaggedOutDroppedByVote( )
 	return m_CFG->GetString( "lang_0095", "lang_0095" );
 }
 
-string CLanguage :: PlayerVotedToDropLaggers( string user )
+string CLanguage::PlayerVotedToDropLaggers(string user, string current, string need)
 {
 	string Out = m_CFG->GetString( "lang_0096", "lang_0096" );
 	UTIL_Replace( Out, "$USER$", user );
+	UTIL_Replace(Out, "$CURRENT$", current);
+	UTIL_Replace(Out, "$NEED$", need);
 	return Out;
 }
 
