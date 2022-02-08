@@ -1,23 +1,46 @@
 config:
-autohost_startplayers	<- changed to allow 0 which mean no auto start
-autohost_backupowner	<- change game owner to this player if autohost_owner is not in game
-bot_fakeplayername		<- fakeplayer default name
-bot_fakeplayer		<- if 1 game will created with fakeplayer in game
-gameranger		<- 1 for GameRanger compatible mode
-gameranger_hostport	<- host port for GameRanger player
-bnet#_backupip
-bnet#_backupport
-bnet#_sendmessage		<- send message when bot create game
-bnet#_overridegamename	<- use map file name instead of specified game name
+autohost_startplayers		<- changed to allow 0 which mean no auto start
+autohost_backupowner		<- change game owner to this player if autohost_owner is not in game
+bot_fakeplayername			<- fakeplayer default name
+bot_fakeplayer				<- if 1 game will created with fakeplayer in game
+bot_gameovertimer			<- if 1 enable game over timer
+gameranger					<- 1 for GameRanger compatible mode
+gameranger_hostport			<- host port for GameRanger player
+bot_dropplayerpercentage	<- player get dropped if vote reach this percentage
+bnet#_backupip				/*															*
+bnet#_backupport			 * alternative address to connect if connect to bnet failed	*/
+bnet#_sendmessage			<- send message when bot create game
+bnet#_overridegamename		<- use map file name instead of specified game name
 
 file:
-admin.txt			<- give player name admin permission in all realm(file end with "\n")
-localip.txt			<- able to use all command (file end with "\n")
+admin.txt					<- give player name admin permission in all realm(file end with "\n")
+localip.txt					<- able to use all command (file end with "\n")
+
+command:
+!relay						<- resend text message to all player in case W3GS_CHAT_TO_HOST ToPIDs have issue
+!debugchat					<- print ToPIDs to console
+!bnet_exit					<- logout battle.net server
+!bnet_say					<- rename from !say
+!say						<- send message from GetHostPID() player
+!addadmin					/*								*
+!dellastadmin				 *								*
+!deladmin					 * for manage admin.txt in game	*/
+!swapspoofcheck				<- swap player spoof check status
+!downloadspeed				<- allow player set they maximun download speed by command (default = 100)
+!forcedownload				<- (8MB patch) mark player name using game.dll patch and rejoin to download map, reset on player leave (all but not caused by this command)
+!ping						<- command can used by all player but only root admin / game owner can trigger ping kick (!lock make only root admin and game owner can use this command)
+
+command (admin game):
+!fl							<- (load lastest "GHost++ *.w3g" file in replay path and first file in save path or load "a.w3g" and [payload] filename) and host a saved game
 
 other:
+wait for all game thread finished so won't lost reply file
 support new game protocol (require broadcasthelper for local player & tested only with 1.31.1.12164)
 war3map.w3i format 28 support
 version display compile date & time
 8MB patch for 1.24 <= version <1.28
 fix if observer enabled and map have unusable slot war3 will leave lobby
 fix if map is fixed player settings can't change SLOTRACE_RANDOM to others
+fix GProxy++ keep trying reconnect if they deleted from game (desync, kick, etc...)
+send empty action when everyone has stopped lagging (hope this fix [lag scrren, no action, lag screen] and all player disconnected)
+admin game won't kick player if they have map file issue (no map, data mismatch, etc...)
