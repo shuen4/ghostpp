@@ -34,6 +34,7 @@ command (admin game):
 !fl							<- (load lastest "GHost++ *.w3g" file in replay path and first file in save path or load "a.w3g" and [payload] filename) and host a saved game
 
 other:
+update to StormLib 9.23
 wait for all game thread finished so won't lost reply file
 support new game protocol (require broadcasthelper for local player & tested only with 1.31.1.12164)
 war3map.w3i format 28 support
